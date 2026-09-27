@@ -1,4 +1,4 @@
-"""UI setup and options for an ordered one-to-four-group chandelier."""
+"""UI setup and options for local lighting processes."""
 
 from __future__ import annotations
 
@@ -12,7 +12,11 @@ from .const import DEFAULT_FEEDBACK_TIMEOUT, DEFAULT_WINDOW, DOMAIN, GROUP_KEYS,
 
 
 def _schema(values):
-    fields = {}
+    fields = {
+        vol.Required("mode", default=values.get("mode", "chandelier")): selector.SelectSelector(
+            selector.SelectSelectorConfig(options=["chandelier", "kitchen"], translation_key="mode")
+        )
+    }
     for key in GROUP_KEYS:
         if key == GROUP_KEYS[0]:
             marker = (
@@ -44,6 +48,8 @@ def _schema(values):
 
 def _validate(hass, values, *, exclude_id=None):
     data = dict(values)
+    data.setdefault("mode", "chandelier")
+    data.setdefault("selection_window", DEFAULT_WINDOW)
     for key in GROUP_KEYS:
         data[key] = data.get(key) or ""
     data["input_button"] = data.get("input_button", "")
@@ -51,6 +57,8 @@ def _validate(hass, values, *, exclude_id=None):
     data["mqtt_topic"] = data["mqtt_topic"].strip()
     data["mqtt_button"] = data["mqtt_button"].strip()
     errors = {}
+    if data["mode"] not in ("chandelier", "kitchen"):
+        errors["mode"] = "invalid_mode"
     try:
         mqtt.valid_publish_topic(data["mqtt_topic"])
     except vol.Invalid:
@@ -59,6 +67,8 @@ def _validate(hass, values, *, exclude_id=None):
         errors["mqtt_button"] = "invalid_button"
     configured = selected_groups(data)
     groups = set(configured)
+    if data["mode"] == "kitchen" and len(configured) != 4:
+        errors["base"] = "kitchen_requires_four"
     if not data["group_1"]:
         errors["group_1"] = "group_required"
     if len(groups) != len(configured):
@@ -76,7 +86,7 @@ def _validate(hass, values, *, exclude_id=None):
     if data["night_light"] in groups:
         errors["night_light"] = "night_light_in_use"
     if (night_state := hass.states.get(data["night_light"])) is not None:
-        if night_state.attributes.get("process_type") == "local_chandelier":
+        if night_state.attributes.get("process_type") in ("local_chandelier", "local_kitchen"):
             errors["night_light"] = "automation_not_light"
     for entry in hass.config_entries.async_entries(DOMAIN):
         if entry.entry_id == exclude_id:

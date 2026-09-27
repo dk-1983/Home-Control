@@ -1,4 +1,4 @@
-"""Independent, serialized chandelier controller; no Home Assistant imports."""
+"""Independent, serialized lighting controllers; no Home Assistant imports."""
 
 from __future__ import annotations
 
@@ -115,8 +115,25 @@ class ChandelierController:
             self.expected = self.feedback_due = None
             self.changed()
         elif self.feedback_due is not None and self.clock() >= self.feedback_due:
-            _LOGGER.warning("Chandelier state feedback timeout")
+            _LOGGER.warning("Lighting state feedback timeout")
             self._fail("feedback_timeout")
+
+    def _plan(self, press: Press, states: tuple[str, ...]):
+        """Return the next step, expected state and ordered service commands."""
+        active = self.deadline is not None and press.at <= self.deadline
+        if active and self.step is not None:
+            next_step = len(self.groups) if self.step == 0 else self.step - 1
+            on = next_step == len(self.groups)
+            targets = self.groups if on else (self.groups[len(self.groups) - 1 - next_step],)
+        else:
+            # Briefly trust an unconfirmed command even after selection
+            # expires, so delayed feedback cannot start the wrong cycle.
+            baseline = self.expected if self.expected is not None else states
+            on = all(s == "off" for s in baseline)
+            next_step = len(self.groups) if on else 0
+            targets = self.groups
+        expected = ("off",) * (len(self.groups) - next_step) + ("on",) * next_step
+        return next_step, expected, ((on, targets),)
 
     async def async_press(self, press: Press | None, source: str) -> None:
         if press is None:
@@ -138,37 +155,31 @@ class ChandelierController:
             if generation != self._generation:
                 return
 
-            active = self.deadline is not None and press.at <= self.deadline
-            if active and self.step is not None:
-                next_step = len(self.groups) if self.step == 0 else self.step - 1
-                on = next_step == len(self.groups)
-                targets = self.groups if on else (self.groups[len(self.groups) - 1 - next_step],)
-            else:
-                # Briefly trust an unconfirmed command even after selection
-                # expires, so delayed feedback cannot start the wrong cycle.
-                baseline = self.expected if self.expected is not None else states
-                on = all(s == "off" for s in baseline)
-                next_step = len(self.groups) if on else 0
-                targets = self.groups
+            next_step, expected, commands = self._plan(press, states)
 
             # Suspend the previous feedback timer while a new service is in
             # flight. The new target will replace it after service success.
             self.expected = self.feedback_due = None
             self.changed()
             try:
-                await self.send(on, targets)
+                for on, targets in commands:
+                    # Maintenance can close the gate during an earlier service
+                    # in a multi-command transition. Do not dispatch the rest.
+                    if not self.enabled or generation != self._generation:
+                        return
+                    await self.send(on, targets)
             except asyncio.CancelledError:
                 self._fail("command_cancelled")
                 raise
             except Exception:
-                _LOGGER.exception("Chandelier command failed; selection reset")
+                _LOGGER.exception("Lighting command failed; selection reset")
                 self._fail("command_failed")
                 return
             if not self.enabled or generation != self._generation:
                 return
             self.step = next_step
             self.deadline = press.at + self.window
-            self.expected = ("off",) * (len(self.groups) - next_step) + ("on",) * next_step
+            self.expected = expected
             self.feedback_due = self.clock() + self.feedback_timeout
             self.last_error = None
             self.changed()
@@ -202,3 +213,45 @@ class ChandelierController:
                 if self.last_error == "night_light_command_failed":
                     self.last_error = None
                 self.changed()
+
+
+class KitchenController(ChandelierController):
+    """Kitchen combinations with the same sliding selection window and gate."""
+
+    PATTERNS = (
+        ("off", "off", "off", "off"),
+        ("on", "off", "off", "off"),
+        ("on", "on", "off", "off"),
+        ("on", "on", "on", "off"),
+        ("off", "off", "on", "off"),
+        ("off", "off", "off", "on"),
+    )
+
+    def __init__(self, groups, read_states, send, *, window=3.0, **kwargs):
+        if len(groups) != 4:
+            raise ValueError("Kitchen mode requires four distinct switches")
+        super().__init__(groups, read_states, send, window=window, **kwargs)
+
+    def _plan(self, press: Press, states: tuple[str, ...]):
+        active = self.deadline is not None and press.at <= self.deadline
+        if active and self.step is not None:
+            baseline = self.PATTERNS[self.step]
+            next_step = (self.step + 1) % len(self.PATTERNS)
+        else:
+            baseline = self.expected if self.expected is not None else states
+            next_step = 1 if all(s == "off" for s in baseline) else 0
+        expected = self.PATTERNS[next_step]
+        if next_step == 0:
+            return next_step, expected, ((False, self.groups),)
+        commands = []
+        # Turn off the previous group before turning on its replacement.
+        for on in (False, True):
+            target_state = "on" if on else "off"
+            targets = tuple(
+                group
+                for group, before, after in zip(self.groups, baseline, expected, strict=True)
+                if before != after and after == target_state
+            )
+            if targets:
+                commands.append((on, targets))
+        return next_step, expected, tuple(commands)

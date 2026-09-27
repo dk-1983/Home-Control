@@ -14,7 +14,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util.dt import parse_datetime
 
 from .const import DOMAIN, SERVICE_TIMEOUT, selected_groups
-from .controller import ChandelierController, button_action
+from .controller import ChandelierController, KitchenController, button_action
 
 
 class HomeControlRuntime:
@@ -34,7 +34,10 @@ class HomeControlRuntime:
         self._stopped = False
         self._night_expected: str | None = None
         self._night_expected_until = 0.0
-        self.controller = ChandelierController(
+        controller_type = (
+            KitchenController if self.config.get("mode") == "kitchen" else ChandelierController
+        )
+        self.controller = controller_type(
             selected_groups(self.config),
             self._states,
             self._send,
@@ -211,7 +214,9 @@ class HomeControlRuntime:
         controller = self.controller
         active = controller.deadline is not None and self.hass.loop.time() <= controller.deadline
         return {
-            "process_type": "local_chandelier",
+            "process_type": "local_kitchen"
+            if isinstance(controller, KitchenController)
+            else "local_chandelier",
             "selection_step": controller.step if active else None,
             "expected_states": list(controller.expected) if controller.expected else None,
             "last_error": controller.last_error,

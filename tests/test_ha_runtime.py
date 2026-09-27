@@ -576,3 +576,77 @@ class HomeAssistantRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 ("turn_on", ["switch.group_1", "switch.group_3"]),
             ],
         )
+
+    async def test_kitchen_config_flow_mode_defaults_and_four_required(self):
+        import voluptuous as vol
+
+        from custom_components.home_control.config_flow import (
+            HomeControlConfigFlow,
+            _schema,
+            _validate,
+        )
+
+        fake_hass = SimpleNamespace(
+            states=self.hass.states, config_entries=SimpleNamespace(async_entries=lambda domain: [])
+        )
+        submitted = vol.Schema(_schema({}))(
+            {k: v for k, v in self.config.items() if k != "selection_window"} | {"mode": "kitchen"}
+        )
+        self.assertEqual(submitted["selection_window"], 3)
+        flow = HomeControlConfigFlow()
+        flow.hass = fake_hass
+        result = await flow.async_step_user(submitted | {"name": "Kitchen"})
+        self.assertEqual(result["type"], "create_entry")
+        self.assertEqual(result["data"]["mode"], "kitchen")
+        _, errors = _validate(fake_hass, submitted | {"group_4": ""})
+        self.assertEqual(errors["base"], "kitchen_requires_four")
+        old, errors = _validate(fake_hass, self.config)
+        self.assertEqual(errors, {})
+        self.assertEqual(old["mode"], "chandelier")
+        self.hass.states.async_set(
+            "switch.kitchen_automation", "on", {"process_type": "local_kitchen"}
+        )
+        _, errors = _validate(fake_hass, submitted | {"night_light": "switch.kitchen_automation"})
+        self.assertEqual(errors["night_light"], "automation_not_light")
+
+    async def test_kitchen_mqtt_cycle_gate_and_cleanup(self):
+        from custom_components.home_control.runtime import HomeControlRuntime
+
+        await self.runtime.async_stop()
+        self.entry.options = {"mode": "kitchen", "mqtt_button": "Button1"}
+        self.runtime = HomeControlRuntime(self.hass, self.entry)
+        await self.runtime.async_start()
+        message = SimpleNamespace(payload='{"Button1":{"Action":"SINGLE"}}', retain=False)
+        self.runtime._mqtt_message(message)
+        await self.hass.async_block_till_done()
+        self.assertEqual(self.commands, [])
+        await self.runtime.async_set_enabled(True)
+        for _ in range(7):
+            self.runtime._mqtt_message(message)
+        await self.hass.async_block_till_done()
+        groups = [f"switch.group_{i}" for i in range(1, 5)]
+        self.assertEqual(
+            self.commands,
+            [
+                ("turn_on", groups[:1]),
+                ("turn_on", groups[1:2]),
+                ("turn_on", groups[2:3]),
+                ("turn_off", groups[:2]),
+                ("turn_off", groups[2:3]),
+                ("turn_on", groups[3:]),
+                ("turn_off", groups),
+                ("turn_on", groups[:1]),
+            ],
+        )
+        self.assertEqual(self.runtime.attributes["process_type"], "local_kitchen")
+        self.assertEqual(self.runtime.attributes["selection_step"], 1)
+        await self.runtime.async_stop()
+        self.assertIsNone(self.runtime._timer)
+        self.assertIsNone(self.runtime._selection_timer)
+        self.runtime._mqtt_message(message)
+        await self.hass.async_block_till_done()
+        self.assertEqual(len(self.commands), 8)
+
+    async def test_kitchen_loads_real_switch_and_button_platforms(self):
+        self.config["mode"] = "kitchen"
+        await self.test_config_entry_loads_real_switch_and_button_platforms()

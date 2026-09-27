@@ -3,20 +3,21 @@
   "config": {
     "step": {
       "user": {
-        "title": "Local chandelier control",
-        "description": "Choose one to four groups in turn-off order. Groups 2–4 may be left empty. Automation starts disabled.",
+        "title": "Local lighting control",
+        "description": "Chandelier: 1–4 groups in turn-off order. Kitchen: all 4 groups, cycle 0000 → 1000 → 1100 → 1110 → 0010 → 0001 → 0000. Every press refreshes the selection window. New processes start disabled; saving options resets selection without switching lights.",
         "data": {
           "name": "Process name",
-          "group_1": "Group 1 (required, turned off first)",
-          "group_2": "Group 2 (optional)",
-          "group_3": "Group 3 (optional)",
-          "group_4": "Group 4 (optional)",
+          "group_1": "Group 1",
+          "group_2": "Group 2",
+          "group_3": "Group 3",
+          "group_4": "Group 4",
           "mqtt_topic": "Tasmota RESULT topic",
           "mqtt_button": "Tasmota button key (e.g. Button4)",
           "input_button": "Existing input_button (optional)",
           "selection_window": "Selection window (seconds)",
           "feedback_timeout": "State feedback timeout (seconds)",
-          "night_light": "Night light (light or switch) — toggle with HOLD"
+          "night_light": "Night light (light or switch) — toggle with HOLD",
+          "mode": "Lighting algorithm"
         }
       }
     },
@@ -30,25 +31,28 @@
       "invalid_name": "Enter a process name.",
       "night_light_in_use": "This entity is already used as a chandelier group or night light.",
       "automation_not_light": "Choose a lamp or relay, not a Home Control automation switch.",
-      "group_required": "Select at least the first lighting group."
+      "group_required": "Select at least the first lighting group.",
+      "kitchen_requires_four": "Kitchen mode requires all four lighting groups.",
+      "invalid_mode": "Choose a lighting algorithm."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Chandelier options",
-        "description": "Saving reloads the process and resets selection without switching the lights.",
+        "title": "Local lighting control",
+        "description": "Chandelier: 1–4 groups in turn-off order. Kitchen: all 4 groups, cycle 0000 → 1000 → 1100 → 1110 → 0010 → 0001 → 0000. Every press refreshes the selection window. New processes start disabled; saving options resets selection without switching lights.",
         "data": {
-          "group_1": "Group 1 (required, turned off first)",
-          "group_2": "Group 2 (optional)",
-          "group_3": "Group 3 (optional)",
-          "group_4": "Group 4 (optional)",
+          "group_1": "Group 1",
+          "group_2": "Group 2",
+          "group_3": "Group 3",
+          "group_4": "Group 4",
           "mqtt_topic": "Tasmota RESULT topic",
           "mqtt_button": "Tasmota button key (e.g. Button4)",
           "input_button": "Existing input_button (optional)",
           "selection_window": "Selection window (seconds)",
           "feedback_timeout": "State feedback timeout (seconds)",
-          "night_light": "Night light (light or switch) — toggle with HOLD"
+          "night_light": "Night light (light or switch) — toggle with HOLD",
+          "mode": "Lighting algorithm"
         }
       }
     },
@@ -62,7 +66,9 @@
       "invalid_name": "Enter a process name.",
       "night_light_in_use": "This entity is already used as a chandelier group or night light.",
       "automation_not_light": "Choose a lamp or relay, not a Home Control automation switch.",
-      "group_required": "Select at least the first lighting group."
+      "group_required": "Select at least the first lighting group.",
+      "kitchen_requires_four": "Kitchen mode requires all four lighting groups.",
+      "invalid_mode": "Choose a lighting algorithm."
     }
   },
   "entity": {
@@ -74,6 +80,14 @@
     "button": {
       "press": {
         "name": "Button press"
+      }
+    }
+  },
+  "selector": {
+    "mode": {
+      "options": {
+        "chandelier": "Chandelier",
+        "kitchen": "Kitchen"
       }
     }
   }
