@@ -8,12 +8,13 @@ from typing import Any
 
 from homeassistant.components import mqtt
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.storage import Store
 from homeassistant.util.dt import parse_datetime
 
 from .const import DOMAIN, GROUP_KEYS, SERVICE_TIMEOUT
-from .controller import ChandelierController, is_single_press
+from .controller import ChandelierController, button_action
 
 
 class HomeControlRuntime:
@@ -56,6 +57,16 @@ class HomeControlRuntime:
                 blocking=True,
             )
 
+    async def _send_night_light(self) -> None:
+        entity_id = self.config["night_light"]
+        state = self.hass.states.get(entity_id)
+        if state is None or state.state not in ("on", "off"):
+            raise HomeAssistantError("Night light is unavailable")
+        async with asyncio.timeout(SERVICE_TIMEOUT):
+            await self.hass.services.async_call(
+                "light", "turn_on", {"entity_id": entity_id}, blocking=True
+            )
+
     @callback
     def _changed(self) -> None:
         if self._timer:
@@ -83,11 +94,18 @@ class HomeControlRuntime:
             self._timer = self.hass.loop.call_later(0.01, self._feedback_expired)
 
     @callback
-    def submit_press(self, source: str) -> None:
+    def submit_press(self, source: str, action: str = "SINGLE") -> None:
         if self._stopped or (press := self.controller.capture_press()) is None:
             return
+        if action == "HOLD" and not self.config.get("night_light"):
+            return
+        operation = (
+            self.controller.async_hold(press, self._send_night_light)
+            if action == "HOLD"
+            else self.controller.async_press(press, source)
+        )
         task = self.hass.async_create_task(
-            self.controller.async_press(press, source),
+            operation,
             f"Home Control button: {self.entry.entry_id}",
         )
         self._tasks.add(task)
@@ -99,8 +117,9 @@ class HomeControlRuntime:
 
     @callback
     def _mqtt_message(self, message) -> None:
-        if is_single_press(message.payload, self.config["mqtt_button"], retain=message.retain):
-            self.submit_press("mqtt")
+        action = button_action(message.payload, self.config["mqtt_button"], retain=message.retain)
+        if action is not None:
+            self.submit_press("mqtt", action)
 
     @callback
     def _input_button_changed(self, event) -> None:

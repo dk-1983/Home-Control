@@ -31,12 +31,16 @@ def _schema(values):
             "feedback_timeout", default=values.get("feedback_timeout", DEFAULT_FEEDBACK_TIMEOUT)
         )
     ] = vol.All(vol.Coerce(float), vol.Range(min=1, max=60))
+    fields[
+        vol.Optional("night_light", description={"suggested_value": values.get("night_light", "")})
+    ] = selector.EntitySelector(selector.EntitySelectorConfig(domain="light"))
     return fields
 
 
 def _validate(hass, values, *, exclude_id=None):
     data = dict(values)
     data["input_button"] = data.get("input_button", "")
+    data["night_light"] = data.get("night_light") or ""
     data["mqtt_topic"] = data["mqtt_topic"].strip()
     data["mqtt_button"] = data["mqtt_button"].strip()
     errors = {}
@@ -54,10 +58,16 @@ def _validate(hass, values, *, exclude_id=None):
             errors["base"] = "missing_entity"
     if data["input_button"] and hass.states.get(data["input_button"]) is None:
         errors["input_button"] = "missing_entity"
+    if data["night_light"] and (
+        not data["night_light"].startswith("light.") or hass.states.get(data["night_light"]) is None
+    ):
+        errors["night_light"] = "missing_entity"
     for entry in hass.config_entries.async_entries(DOMAIN):
         if entry.entry_id == exclude_id:
             continue
         other = dict(entry.data) | dict(entry.options)
+        if data["night_light"] and data["night_light"] == other.get("night_light"):
+            errors["night_light"] = "night_light_in_use"
         if groups.intersection(other[k] for k in GROUP_KEYS):
             errors["base"] = "groups_in_use"
         if (data["mqtt_topic"], data["mqtt_button"]) == (other["mqtt_topic"], other["mqtt_button"]):

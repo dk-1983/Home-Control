@@ -15,7 +15,8 @@
           "mqtt_button": "Tasmota button key (e.g. Button4)",
           "input_button": "Existing input_button (optional)",
           "selection_window": "Selection window (seconds)",
-          "feedback_timeout": "State feedback timeout (seconds)"
+          "feedback_timeout": "State feedback timeout (seconds)",
+          "night_light": "Night light — turn on with HOLD (optional)"
         }
       }
     },
@@ -26,7 +27,8 @@
       "missing_entity": "The selected entity does not exist in Home Assistant.",
       "groups_in_use": "A selected switch already belongs to another Home Control process.",
       "source_in_use": "This button source is already used by another process.",
-      "invalid_name": "Enter a process name."
+      "invalid_name": "Enter a process name.",
+      "night_light_in_use": "This night light is already assigned to another Home Control process."
     }
   },
   "options": {
@@ -43,7 +45,8 @@
           "mqtt_button": "Tasmota button key (e.g. Button4)",
           "input_button": "Existing input_button (optional)",
           "selection_window": "Selection window (seconds)",
-          "feedback_timeout": "State feedback timeout (seconds)"
+          "feedback_timeout": "State feedback timeout (seconds)",
+          "night_light": "Night light — turn on with HOLD (optional)"
         }
       }
     },
@@ -54,7 +57,8 @@
       "missing_entity": "The selected entity does not exist in Home Assistant.",
       "groups_in_use": "A selected switch already belongs to another Home Control process.",
       "source_in_use": "This button source is already used by another process.",
-      "invalid_name": "Enter a process name."
+      "invalid_name": "Enter a process name.",
+      "night_light_in_use": "This night light is already assigned to another Home Control process."
     }
   },
   "entity": {

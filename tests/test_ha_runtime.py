@@ -245,3 +245,148 @@ class HomeAssistantRuntimeTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(await self.hass.config_entries.async_unload(entry.entry_id))
             self.assertFalse(loaded_runtime.controller.enabled)
             self.assertIsNone(loaded_runtime._timer)
+
+    def _configure_night_light(self):
+        self.runtime.config["night_light"] = "light.night_light"
+        self.hass.states.async_set("light.night_light", "off")
+        calls = []
+
+        async def turn_on(call):
+            calls.append(dict(call.data))
+
+        self.hass.services.async_register("light", "turn_on", turn_on)
+        return calls
+
+    def _hold_message(self, action="HOLD", retain=False):
+        import json
+
+        self.runtime._mqtt_message(
+            SimpleNamespace(payload=json.dumps({"Button4": {"Action": action}}), retain=retain)
+        )
+
+    async def test_hold_turns_on_only_night_light_and_preserves_selection(self):
+        calls = self._configure_night_light()
+        await self.runtime.async_set_enabled(True)
+        await self.runtime.async_press()
+        deadline = self.runtime.controller.deadline
+        self._hold_message()
+        self._hold_message("CLEAR")
+        await self.hass.async_block_till_done()
+        self.assertEqual(calls, [{"entity_id": "light.night_light"}])
+        self.assertEqual(len(self.commands), 1)
+        self.assertEqual(self.runtime.controller.step, 4)
+        self.assertEqual(self.runtime.controller.deadline, deadline)
+        self.assertEqual(self.runtime.controller.last_source, "mqtt_hold")
+
+    async def test_hold_retained_disabled_and_other_actions_are_ignored(self):
+        calls = self._configure_night_light()
+        self._hold_message()
+        await self.runtime.async_set_enabled(True)
+        self._hold_message(retain=True)
+        self._hold_message("CLEAR")
+        self._hold_message("DOUBLE")
+        self._hold_message({"unexpected": "object"})
+        await self.hass.async_block_till_done()
+        self.assertEqual(calls, [])
+        self.assertEqual(self.commands, [])
+
+    async def test_old_config_without_night_light_still_handles_single(self):
+        await self.runtime.async_set_enabled(True)
+        self._hold_message()
+        self._hold_message("SINGLE")
+        await self.hass.async_block_till_done()
+        self.assertEqual(len(self.commands), 1)
+        self.assertIsNone(self.runtime.controller.last_error)
+
+    async def test_repeated_hold_never_toggles_light_off(self):
+        calls = self._configure_night_light()
+        self.hass.states.async_set("light.night_light", "on")
+        await self.runtime.async_set_enabled(True)
+        self._hold_message()
+        self._hold_message()
+        await self.hass.async_block_till_done()
+        self.assertEqual(calls, [{"entity_id": "light.night_light"}] * 2)
+        self.assertEqual(self.commands, [])
+
+    async def test_maintenance_drops_queued_hold_and_waits_for_inflight_hold(self):
+        import asyncio
+
+        calls = self._configure_night_light()
+        started, release = asyncio.Event(), asyncio.Event()
+
+        async def blocked_turn_on(call):
+            calls.append(dict(call.data))
+            started.set()
+            await release.wait()
+
+        self.hass.services.async_register("light", "turn_on", blocked_turn_on)
+        await self.runtime.async_set_enabled(True)
+        self._hold_message()
+        await started.wait()
+        self._hold_message()
+        disabling = asyncio.create_task(self.runtime.async_set_enabled(False))
+        await asyncio.sleep(0)
+        self.assertFalse(self.runtime.controller.enabled)
+        self.assertFalse(disabling.done())
+        release.set()
+        await disabling
+        await self.hass.async_block_till_done()
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(self.commands, [])
+
+    async def test_unavailable_night_light_does_not_block_chandelier(self):
+        calls = self._configure_night_light()
+        self.hass.states.async_set("light.night_light", "unavailable")
+        await self.runtime.async_set_enabled(True)
+        with self.assertLogs("custom_components.home_control.controller", level="ERROR"):
+            self._hold_message()
+            await self.hass.async_block_till_done()
+        self.assertEqual(self.runtime.controller.last_error, "night_light_command_failed")
+        self.assertEqual(calls, [])
+        await self.runtime.async_press()
+        self.assertEqual(len(self.commands), 1)
+
+    async def test_night_light_service_error_and_timeout_are_handled(self):
+        import asyncio
+
+        self._configure_night_light()
+        await self.runtime.async_set_enabled(True)
+
+        async def failed(call):
+            raise RuntimeError("service failed")
+
+        async def blocked(call):
+            await asyncio.Event().wait()
+
+        for handler in (failed, blocked):
+            self.hass.services.async_register("light", "turn_on", handler)
+            with (
+                patch("custom_components.home_control.runtime.SERVICE_TIMEOUT", 0.01),
+                self.assertLogs("custom_components.home_control.controller", level="ERROR"),
+            ):
+                self._hold_message()
+                await self.hass.async_block_till_done()
+            self.assertEqual(self.runtime.controller.last_error, "night_light_command_failed")
+        self.assertTrue(self.runtime.controller.enabled)
+        self.assertEqual(self.commands, [])
+
+    async def test_night_light_validation_clear_and_diagnostics_redaction(self):
+        from custom_components.home_control.config_flow import _validate
+        from custom_components.home_control.diagnostics import async_get_config_entry_diagnostics
+
+        self._configure_night_light()
+        fake_hass = SimpleNamespace(
+            states=self.hass.states, config_entries=SimpleNamespace(async_entries=lambda domain: [])
+        )
+        _, errors = _validate(fake_hass, self.config | {"night_light": "light.missing"})
+        self.assertEqual(errors["night_light"], "missing_entity")
+        self.entry.options = {"night_light": "light.night_light"}
+        fake_hass.config_entries.async_entries = lambda domain: [self.entry]
+        _, errors = _validate(fake_hass, self.config | self.entry.options)
+        self.assertEqual(errors["night_light"], "night_light_in_use")
+        cleaned, errors = _validate(fake_hass, self.config, exclude_id="test")
+        self.assertEqual(cleaned["night_light"], "")
+        self.assertEqual(errors, {})
+        self.entry.runtime_data = self.runtime
+        diagnostics = await async_get_config_entry_diagnostics(self.hass, self.entry)
+        self.assertNotEqual(diagnostics["config"]["night_light"], "light.night_light")

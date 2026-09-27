@@ -20,19 +20,22 @@ class Press:
     generation: int
 
 
-def is_single_press(payload: str | bytes, button: str, *, retain: bool = False) -> bool:
-    """Accept semantic Tasmota JSON, never replay retained button messages."""
+def button_action(payload: str | bytes, button: str, *, retain: bool = False) -> str | None:
+    """Decode supported actions; never replay retained button messages."""
     if retain:
-        return False
+        return None
     try:
         data = json.loads(payload)
     except ValueError, TypeError, UnicodeDecodeError:
-        return False
-    return (
-        isinstance(data, dict)
-        and isinstance(data.get(button), dict)
-        and data[button].get("Action") == "SINGLE"
-    )
+        return None
+    if not isinstance(data, dict) or not isinstance(data.get(button), dict):
+        return None
+    action = data[button].get("Action")
+    return action if action in ("SINGLE", "HOLD") else None
+
+
+def is_single_press(payload: str | bytes, button: str, *, retain: bool = False) -> bool:
+    return button_action(payload, button, retain=retain) == "SINGLE"
 
 
 class ChandelierController:
@@ -169,3 +172,33 @@ class ChandelierController:
             self.feedback_due = self.clock() + self.feedback_timeout
             self.last_error = None
             self.changed()
+
+    async def async_hold(self, press: Press | None, action: Callable[[], Awaitable[None]]) -> None:
+        """Run the night light action under the same gate and command lock.
+
+        A successful HOLD does not advance or extend chandelier selection.
+        """
+        if press is None:
+            return
+        async with self._lock:
+            if not self.enabled or press.generation != self._generation:
+                return
+            if self.clock() - press.at > 10:
+                self._fail("stale_press")
+                return
+            generation = self._generation
+            self.last_source = "mqtt_hold"
+            try:
+                await action()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                _LOGGER.exception("Night light command failed")
+                if generation == self._generation:
+                    self.last_error = "night_light_command_failed"
+                    self.changed()
+                return
+            if self.enabled and generation == self._generation:
+                if self.last_error == "night_light_command_failed":
+                    self.last_error = None
+                self.changed()

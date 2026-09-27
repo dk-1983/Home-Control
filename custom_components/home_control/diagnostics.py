@@ -8,7 +8,15 @@ async def async_get_config_entry_diagnostics(hass, entry):
     return {
         "config": async_redact_data(
             runtime.config,
-            {"group_1", "group_2", "group_3", "group_4", "mqtt_topic", "input_button"},
+            {
+                "group_1",
+                "group_2",
+                "group_3",
+                "group_4",
+                "mqtt_topic",
+                "input_button",
+                "night_light",
+            },
         ),
         "enabled": runtime.controller.enabled,
         "controller": runtime.attributes,

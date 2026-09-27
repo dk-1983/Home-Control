@@ -15,7 +15,8 @@
           "mqtt_button": "Ключ кнопки Tasmota (например, Button4)",
           "input_button": "Существующая input_button (необязательно)",
           "selection_window": "Окно выбора, секунды",
-          "feedback_timeout": "Ожидание обратной связи, секунды"
+          "feedback_timeout": "Ожидание обратной связи, секунды",
+          "night_light": "Ночник — включение по HOLD (необязательно)"
         }
       }
     },
@@ -26,7 +27,8 @@
       "missing_entity": "Выбранная сущность отсутствует в Home Assistant.",
       "groups_in_use": "Один из переключателей уже используется другим процессом Home Control.",
       "source_in_use": "Этот источник нажатий уже используется другим процессом.",
-      "invalid_name": "Укажите название процесса."
+      "invalid_name": "Укажите название процесса.",
+      "night_light_in_use": "Ночник уже назначен другому процессу Home Control."
     }
   },
   "options": {
@@ -43,7 +45,8 @@
           "mqtt_button": "Ключ кнопки Tasmota (например, Button4)",
           "input_button": "Существующая input_button (необязательно)",
           "selection_window": "Окно выбора, секунды",
-          "feedback_timeout": "Ожидание обратной связи, секунды"
+          "feedback_timeout": "Ожидание обратной связи, секунды",
+          "night_light": "Ночник — включение по HOLD (необязательно)"
         }
       }
     },
@@ -54,7 +57,8 @@
       "missing_entity": "Выбранная сущность отсутствует в Home Assistant.",
       "groups_in_use": "Один из переключателей уже используется другим процессом Home Control.",
       "source_in_use": "Этот источник нажатий уже используется другим процессом.",
-      "invalid_name": "Укажите название процесса."
+      "invalid_name": "Укажите название процесса.",
+      "night_light_in_use": "Ночник уже назначен другому процессу Home Control."
     }
   },
   "entity": {
