@@ -1,0 +1,17 @@
+{
+  "domain": "home_control",
+  "name": "Home Control",
+  "codeowners": [
+    "@dk-1983"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "mqtt"
+  ],
+  "documentation": "https://github.com/dk-1983/Home-Control/blob/main/README.md",
+  "integration_type": "helper",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/dk-1983/Home-Control/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

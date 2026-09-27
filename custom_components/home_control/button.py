@@ -1,0 +1,24 @@
+"""Native virtual button; existing input_button helpers are also supported."""
+
+from homeassistant.components.button import ButtonEntity
+
+from .entity import HomeControlEntity
+
+
+async def async_setup_entry(hass, entry, async_add_entities) -> None:
+    async_add_entities([ChandelierButton(entry.runtime_data)])
+
+
+class ChandelierButton(HomeControlEntity, ButtonEntity):
+    _attr_translation_key = "press"
+    _attr_icon = "mdi:ceiling-light"
+
+    def __init__(self, runtime) -> None:
+        super().__init__(runtime, "press")
+
+    @property
+    def available(self) -> bool:
+        return self.runtime.controller.enabled
+
+    async def async_press(self) -> None:
+        await self.runtime.async_press()

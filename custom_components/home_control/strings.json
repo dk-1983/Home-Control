@@ -1,0 +1,72 @@
+{
+  "title": "Home Control",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Local chandelier control",
+        "description": "Choose groups in turn-off order. Automation starts disabled; disable the old pyscript before enabling it.",
+        "data": {
+          "name": "Process name",
+          "group_1": "Group 1 (turned off first)",
+          "group_2": "Group 2",
+          "group_3": "Group 3",
+          "group_4": "Group 4 (turned off last)",
+          "mqtt_topic": "Tasmota RESULT topic",
+          "mqtt_button": "Tasmota button key (e.g. Button4)",
+          "input_button": "Existing input_button (optional)",
+          "selection_window": "Selection window (seconds)",
+          "feedback_timeout": "State feedback timeout (seconds)"
+        }
+      }
+    },
+    "error": {
+      "invalid_topic": "Enter an exact MQTT topic without wildcards.",
+      "invalid_button": "Enter the JSON button key.",
+      "duplicate_groups": "Select four different switches.",
+      "missing_entity": "The selected entity does not exist in Home Assistant.",
+      "groups_in_use": "A selected switch already belongs to another Home Control process.",
+      "source_in_use": "This button source is already used by another process.",
+      "invalid_name": "Enter a process name."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Chandelier options",
+        "description": "Saving reloads the process and resets selection without switching the lights.",
+        "data": {
+          "group_1": "Group 1 (turned off first)",
+          "group_2": "Group 2",
+          "group_3": "Group 3",
+          "group_4": "Group 4 (turned off last)",
+          "mqtt_topic": "Tasmota RESULT topic",
+          "mqtt_button": "Tasmota button key (e.g. Button4)",
+          "input_button": "Existing input_button (optional)",
+          "selection_window": "Selection window (seconds)",
+          "feedback_timeout": "State feedback timeout (seconds)"
+        }
+      }
+    },
+    "error": {
+      "invalid_topic": "Enter an exact MQTT topic without wildcards.",
+      "invalid_button": "Enter the JSON button key.",
+      "duplicate_groups": "Select four different switches.",
+      "missing_entity": "The selected entity does not exist in Home Assistant.",
+      "groups_in_use": "A selected switch already belongs to another Home Control process.",
+      "source_in_use": "This button source is already used by another process.",
+      "invalid_name": "Enter a process name."
+    }
+  },
+  "entity": {
+    "switch": {
+      "automation": {
+        "name": "Automation"
+      }
+    },
+    "button": {
+      "press": {
+        "name": "Button press"
+      }
+    }
+  }
+}

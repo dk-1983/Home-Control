@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+work/
+dist/
+.env
+.env.*
+secrets.yaml
+.storage/
+.vscode/
+.idea/
+*.log
+*.local.md
+
+# Local agent instructions and private working notes
+AGENTS.md
+.agents/
+.codex/
