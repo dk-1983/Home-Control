@@ -1,3 +1,5 @@
+![Home Control — personal home automation](assets/images/home-control-banner.png)
+
 # Home Control
 
 Личный проект автоматизации конкретной квартиры на Home Assistant, созданный под мои предпочтения, оборудование и повседневные привычки. **Made for myself.**
