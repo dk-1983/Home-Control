@@ -61,6 +61,10 @@ class HomeControlRuntime:
 
     async def _send_night_light(self) -> None:
         entity_id = self.config["night_light"]
+        domain = entity_id.split(".", 1)[0]
+        if domain not in ("light", "switch"):
+            self._night_expected = None
+            raise HomeAssistantError("Night light must be a light or switch")
         state = self.hass.states.get(entity_id)
         if state is None or state.state not in ("on", "off"):
             self._night_expected = None
@@ -73,7 +77,7 @@ class HomeControlRuntime:
         try:
             async with asyncio.timeout(SERVICE_TIMEOUT):
                 await self.hass.services.async_call(
-                    "light", f"turn_{target}", {"entity_id": entity_id}, blocking=True
+                    domain, f"turn_{target}", {"entity_id": entity_id}, blocking=True
                 )
         except BaseException:
             self._night_expected = None

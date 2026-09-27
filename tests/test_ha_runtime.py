@@ -446,3 +446,70 @@ class HomeAssistantRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self._hold_message()
         await self.hass.async_block_till_done()
         self.assertEqual(self.night_services, ["turn_on", "turn_on"])
+
+    async def test_switch_night_light_toggles_without_touching_chandelier(self):
+        self.runtime.config["night_light"] = "switch.night_relay"
+        self.hass.states.async_set("switch.night_relay", "off")
+        await self.runtime.async_set_enabled(True)
+        self._hold_message()
+        self._hold_message()
+        await self.hass.async_block_till_done()
+        self.assertEqual(
+            self.commands, [("turn_on", "switch.night_relay"), ("turn_off", "switch.night_relay")]
+        )
+        self.assertIsNone(self.runtime.controller.step)
+        self.assertIsNone(self.runtime.controller.last_error)
+
+    async def test_switch_night_light_selector_and_validation(self):
+        import voluptuous as vol
+
+        from custom_components.home_control.config_flow import _schema, _validate
+
+        self.hass.states.async_set("switch.night_relay", "off")
+        data = self.config | {"night_light": "switch.night_relay"}
+        validated = vol.Schema(_schema(data))(data)
+        fake_hass = SimpleNamespace(
+            states=self.hass.states, config_entries=SimpleNamespace(async_entries=lambda domain: [])
+        )
+        _, errors = _validate(fake_hass, validated)
+        self.assertEqual(errors, {})
+        self.hass.states.async_set("sensor.not_a_light", "off")
+        _, errors = _validate(fake_hass, data | {"night_light": "sensor.not_a_light"})
+        self.assertEqual(errors["night_light"], "missing_entity")
+
+    async def test_night_relay_cannot_overlap_groups_or_automation_switch(self):
+        from custom_components.home_control.config_flow import _validate
+
+        fake_hass = SimpleNamespace(
+            states=self.hass.states, config_entries=SimpleNamespace(async_entries=lambda domain: [])
+        )
+        _, errors = _validate(fake_hass, self.config | {"night_light": "switch.group_1"})
+        self.assertEqual(errors["night_light"], "night_light_in_use")
+        self.hass.states.async_set("switch.automation", "on", {"process_type": "local_chandelier"})
+        _, errors = _validate(fake_hass, self.config | {"night_light": "switch.automation"})
+        self.assertEqual(errors["night_light"], "automation_not_light")
+
+    async def test_cross_process_night_relay_ownership_in_both_directions(self):
+        from custom_components.home_control.config_flow import _validate
+
+        other = SimpleNamespace(
+            entry_id="other",
+            data={
+                **self.config,
+                **{f"group_{i}": f"switch.other_{i}" for i in range(1, 5)},
+                "night_light": "switch.other_night",
+                "mqtt_topic": "other/RESULT",
+                "input_button": "",
+            },
+            options={},
+        )
+        for entity_id in ("switch.other_1", "switch.other_night"):
+            self.hass.states.async_set(entity_id, "off")
+        fake_hass = SimpleNamespace(
+            states=self.hass.states,
+            config_entries=SimpleNamespace(async_entries=lambda domain: [other]),
+        )
+        _, errors = _validate(fake_hass, self.config | {"night_light": "switch.other_1"})
+        self.assertEqual(errors["night_light"], "night_light_in_use")
+        _, errors = _validate(fake_hass, self.config | {"group_1": "switch.other_night"})
+        self.assertEqual(errors["base"], "groups_in_use")

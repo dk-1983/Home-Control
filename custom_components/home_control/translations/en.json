@@ -16,7 +16,7 @@
           "input_button": "Existing input_button (optional)",
           "selection_window": "Selection window (seconds)",
           "feedback_timeout": "State feedback timeout (seconds)",
-          "night_light": "Night light — toggle with HOLD (optional)"
+          "night_light": "Night light (light or switch) — toggle with HOLD"
         }
       }
     },
@@ -28,7 +28,8 @@
       "groups_in_use": "A selected switch already belongs to another Home Control process.",
       "source_in_use": "This button source is already used by another process.",
       "invalid_name": "Enter a process name.",
-      "night_light_in_use": "This night light is already assigned to another Home Control process."
+      "night_light_in_use": "This entity is already used as a chandelier group or night light.",
+      "automation_not_light": "Choose a lamp or relay, not a Home Control automation switch."
     }
   },
   "options": {
@@ -46,7 +47,7 @@
           "input_button": "Existing input_button (optional)",
           "selection_window": "Selection window (seconds)",
           "feedback_timeout": "State feedback timeout (seconds)",
-          "night_light": "Night light — toggle with HOLD (optional)"
+          "night_light": "Night light (light or switch) — toggle with HOLD"
         }
       }
     },
@@ -58,7 +59,8 @@
       "groups_in_use": "A selected switch already belongs to another Home Control process.",
       "source_in_use": "This button source is already used by another process.",
       "invalid_name": "Enter a process name.",
-      "night_light_in_use": "This night light is already assigned to another Home Control process."
+      "night_light_in_use": "This entity is already used as a chandelier group or night light.",
+      "automation_not_light": "Choose a lamp or relay, not a Home Control automation switch."
     }
   },
   "entity": {

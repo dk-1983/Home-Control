@@ -33,7 +33,7 @@ def _schema(values):
     ] = vol.All(vol.Coerce(float), vol.Range(min=1, max=60))
     fields[
         vol.Optional("night_light", description={"suggested_value": values.get("night_light", "")})
-    ] = selector.EntitySelector(selector.EntitySelectorConfig(domain="light"))
+    ] = selector.EntitySelector(selector.EntitySelectorConfig(domain=["light", "switch"]))
     return fields
 
 
@@ -59,16 +59,25 @@ def _validate(hass, values, *, exclude_id=None):
     if data["input_button"] and hass.states.get(data["input_button"]) is None:
         errors["input_button"] = "missing_entity"
     if data["night_light"] and (
-        not data["night_light"].startswith("light.") or hass.states.get(data["night_light"]) is None
+        not data["night_light"].startswith(("light.", "switch."))
+        or hass.states.get(data["night_light"]) is None
     ):
         errors["night_light"] = "missing_entity"
+    if data["night_light"] in groups:
+        errors["night_light"] = "night_light_in_use"
+    if (night_state := hass.states.get(data["night_light"])) is not None:
+        if night_state.attributes.get("process_type") == "local_chandelier":
+            errors["night_light"] = "automation_not_light"
     for entry in hass.config_entries.async_entries(DOMAIN):
         if entry.entry_id == exclude_id:
             continue
         other = dict(entry.data) | dict(entry.options)
-        if data["night_light"] and data["night_light"] == other.get("night_light"):
+        other_groups = {other[k] for k in GROUP_KEYS}
+        if data["night_light"] and (
+            data["night_light"] == other.get("night_light") or data["night_light"] in other_groups
+        ):
             errors["night_light"] = "night_light_in_use"
-        if groups.intersection(other[k] for k in GROUP_KEYS):
+        if groups.intersection(other_groups) or other.get("night_light") in groups:
             errors["base"] = "groups_in_use"
         if (data["mqtt_topic"], data["mqtt_button"]) == (other["mqtt_topic"], other["mqtt_button"]):
             errors["mqtt_topic"] = "source_in_use"
