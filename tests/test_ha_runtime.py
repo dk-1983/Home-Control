@@ -204,6 +204,9 @@ class HomeAssistantRuntimeTests(unittest.IsolatedAsyncioTestCase):
             ignore=shutil.ignore_patterns("__pycache__"),
         )
         loader.async_setup(self.hass)
+        descriptions = await loader.async_get_integration_descriptions(self.hass)
+        self.assertIn("home_control", descriptions["custom"]["integration"])
+        self.assertNotIn("home_control", descriptions["custom"]["helper"])
         from homeassistant.helpers import area_registry, device_registry, entity_registry
 
         await area_registry.async_load(self.hass)
