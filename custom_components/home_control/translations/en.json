@@ -16,7 +16,7 @@
           "input_button": "Existing input_button (optional)",
           "selection_window": "Selection window (seconds)",
           "feedback_timeout": "State feedback timeout (seconds)",
-          "night_light": "Night light — turn on with HOLD (optional)"
+          "night_light": "Night light — toggle with HOLD (optional)"
         }
       }
     },
@@ -46,7 +46,7 @@
           "input_button": "Existing input_button (optional)",
           "selection_window": "Selection window (seconds)",
           "feedback_timeout": "State feedback timeout (seconds)",
-          "night_light": "Night light — turn on with HOLD (optional)"
+          "night_light": "Night light — toggle with HOLD (optional)"
         }
       }
     },

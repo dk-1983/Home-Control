@@ -250,11 +250,14 @@ class HomeAssistantRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.runtime.config["night_light"] = "light.night_light"
         self.hass.states.async_set("light.night_light", "off")
         calls = []
+        self.night_services = []
 
         async def turn_on(call):
             calls.append(dict(call.data))
+            self.night_services.append(call.service)
 
         self.hass.services.async_register("light", "turn_on", turn_on)
+        self.hass.services.async_register("light", "turn_off", turn_on)
         return calls
 
     def _hold_message(self, action="HOLD", retain=False):
@@ -298,7 +301,7 @@ class HomeAssistantRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.commands), 1)
         self.assertIsNone(self.runtime.controller.last_error)
 
-    async def test_repeated_hold_never_toggles_light_off(self):
+    async def test_repeated_hold_toggles_from_on_despite_stale_feedback(self):
         calls = self._configure_night_light()
         self.hass.states.async_set("light.night_light", "on")
         await self.runtime.async_set_enabled(True)
@@ -306,6 +309,7 @@ class HomeAssistantRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self._hold_message()
         await self.hass.async_block_till_done()
         self.assertEqual(calls, [{"entity_id": "light.night_light"}] * 2)
+        self.assertEqual(self.night_services, ["turn_off", "turn_on"])
         self.assertEqual(self.commands, [])
 
     async def test_maintenance_drops_queued_hold_and_waits_for_inflight_hold(self):
@@ -390,3 +394,55 @@ class HomeAssistantRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.entry.runtime_data = self.runtime
         diagnostics = await async_get_config_entry_diagnostics(self.hass, self.entry)
         self.assertNotEqual(diagnostics["config"]["night_light"], "light.night_light")
+
+    async def test_three_holds_toggle_from_off_despite_stale_feedback(self):
+        self._configure_night_light()
+        await self.runtime.async_set_enabled(True)
+        for _ in range(3):
+            self._hold_message()
+        await self.hass.async_block_till_done()
+        self.assertEqual(self.night_services, ["turn_on", "turn_off", "turn_on"])
+        self.assertEqual(self.commands, [])
+
+    async def test_expired_night_light_expectation_uses_actual_state(self):
+        self._configure_night_light()
+        await self.runtime.async_set_enabled(True)
+        self._hold_message()
+        await self.hass.async_block_till_done()
+        self.runtime._night_expected_until = self.hass.loop.time() - 1
+        self._hold_message()
+        await self.hass.async_block_till_done()
+        self.assertEqual(self.night_services, ["turn_on", "turn_on"])
+
+    async def test_maintenance_resets_night_light_expectation(self):
+        self._configure_night_light()
+        await self.runtime.async_set_enabled(True)
+        self._hold_message()
+        await self.hass.async_block_till_done()
+        await self.runtime.async_set_enabled(False)
+        self.assertIsNone(self.runtime._night_expected)
+        await self.runtime.async_set_enabled(True)
+        self._hold_message()
+        await self.hass.async_block_till_done()
+        self.assertEqual(self.night_services, ["turn_on", "turn_on"])
+
+    async def test_failed_turn_off_discards_night_light_expectation(self):
+        from homeassistant.exceptions import HomeAssistantError
+
+        self._configure_night_light()
+        await self.runtime.async_set_enabled(True)
+        self._hold_message()
+        await self.hass.async_block_till_done()
+
+        async def failed(call):
+            raise HomeAssistantError("relay rejected off")
+
+        self.hass.services.async_register("light", "turn_off", failed)
+        with self.assertLogs("custom_components.home_control.controller", level="ERROR"):
+            self._hold_message()
+            await self.hass.async_block_till_done()
+        self.assertIsNone(self.runtime._night_expected)
+        self.assertEqual(self.runtime.controller.last_error, "night_light_command_failed")
+        self._hold_message()
+        await self.hass.async_block_till_done()
+        self.assertEqual(self.night_services, ["turn_on", "turn_on"])

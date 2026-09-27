@@ -32,6 +32,8 @@ class HomeControlRuntime:
         self._tasks: set[asyncio.Task] = set()
         self._toggle_lock = asyncio.Lock()
         self._stopped = False
+        self._night_expected: str | None = None
+        self._night_expected_until = 0.0
         self.controller = ChandelierController(
             [self.config[k] for k in GROUP_KEYS],
             self._states,
@@ -61,14 +63,30 @@ class HomeControlRuntime:
         entity_id = self.config["night_light"]
         state = self.hass.states.get(entity_id)
         if state is None or state.state not in ("on", "off"):
+            self._night_expected = None
             raise HomeAssistantError("Night light is unavailable")
-        async with asyncio.timeout(SERVICE_TIMEOUT):
-            await self.hass.services.async_call(
-                "light", "turn_on", {"entity_id": entity_id}, blocking=True
-            )
+        now = self.hass.loop.time()
+        if state.state == self._night_expected or now >= self._night_expected_until:
+            self._night_expected = None
+        baseline = self._night_expected or state.state
+        target = "off" if baseline == "on" else "on"
+        try:
+            async with asyncio.timeout(SERVICE_TIMEOUT):
+                await self.hass.services.async_call(
+                    "light", f"turn_{target}", {"entity_id": entity_id}, blocking=True
+                )
+        except BaseException:
+            self._night_expected = None
+            raise
+        if self.controller.enabled and not self._stopped:
+            self._night_expected = target
+            self._night_expected_until = self.hass.loop.time() + self.config["feedback_timeout"]
 
     @callback
     def _changed(self) -> None:
+        if not self.controller.enabled:
+            self._night_expected = None
+            self._night_expected_until = 0.0
         if self._timer:
             self._timer.cancel()
             self._timer = None
