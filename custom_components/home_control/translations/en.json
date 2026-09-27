@@ -4,13 +4,13 @@
     "step": {
       "user": {
         "title": "Local chandelier control",
-        "description": "Choose groups in turn-off order. Automation starts disabled; disable the old pyscript before enabling it.",
+        "description": "Choose one to four groups in turn-off order. Groups 2–4 may be left empty. Automation starts disabled.",
         "data": {
           "name": "Process name",
-          "group_1": "Group 1 (turned off first)",
-          "group_2": "Group 2",
-          "group_3": "Group 3",
-          "group_4": "Group 4 (turned off last)",
+          "group_1": "Group 1 (required, turned off first)",
+          "group_2": "Group 2 (optional)",
+          "group_3": "Group 3 (optional)",
+          "group_4": "Group 4 (optional)",
           "mqtt_topic": "Tasmota RESULT topic",
           "mqtt_button": "Tasmota button key (e.g. Button4)",
           "input_button": "Existing input_button (optional)",
@@ -23,13 +23,14 @@
     "error": {
       "invalid_topic": "Enter an exact MQTT topic without wildcards.",
       "invalid_button": "Enter the JSON button key.",
-      "duplicate_groups": "Select four different switches.",
+      "duplicate_groups": "Select distinct entities for the configured groups.",
       "missing_entity": "The selected entity does not exist in Home Assistant.",
       "groups_in_use": "A selected switch already belongs to another Home Control process.",
       "source_in_use": "This button source is already used by another process.",
       "invalid_name": "Enter a process name.",
       "night_light_in_use": "This entity is already used as a chandelier group or night light.",
-      "automation_not_light": "Choose a lamp or relay, not a Home Control automation switch."
+      "automation_not_light": "Choose a lamp or relay, not a Home Control automation switch.",
+      "group_required": "Select at least the first lighting group."
     }
   },
   "options": {
@@ -38,10 +39,10 @@
         "title": "Chandelier options",
         "description": "Saving reloads the process and resets selection without switching the lights.",
         "data": {
-          "group_1": "Group 1 (turned off first)",
-          "group_2": "Group 2",
-          "group_3": "Group 3",
-          "group_4": "Group 4 (turned off last)",
+          "group_1": "Group 1 (required, turned off first)",
+          "group_2": "Group 2 (optional)",
+          "group_3": "Group 3 (optional)",
+          "group_4": "Group 4 (optional)",
           "mqtt_topic": "Tasmota RESULT topic",
           "mqtt_button": "Tasmota button key (e.g. Button4)",
           "input_button": "Existing input_button (optional)",
@@ -54,13 +55,14 @@
     "error": {
       "invalid_topic": "Enter an exact MQTT topic without wildcards.",
       "invalid_button": "Enter the JSON button key.",
-      "duplicate_groups": "Select four different switches.",
+      "duplicate_groups": "Select distinct entities for the configured groups.",
       "missing_entity": "The selected entity does not exist in Home Assistant.",
       "groups_in_use": "A selected switch already belongs to another Home Control process.",
       "source_in_use": "This button source is already used by another process.",
       "invalid_name": "Enter a process name.",
       "night_light_in_use": "This entity is already used as a chandelier group or night light.",
-      "automation_not_light": "Choose a lamp or relay, not a Home Control automation switch."
+      "automation_not_light": "Choose a lamp or relay, not a Home Control automation switch.",
+      "group_required": "Select at least the first lighting group."
     }
   },
   "entity": {

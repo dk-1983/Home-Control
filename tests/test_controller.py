@@ -246,3 +246,52 @@ class PayloadTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class VariableGroupTests(unittest.IsolatedAsyncioTestCase):
+    async def test_full_cycles_for_one_to_four_groups_with_delayed_feedback(self):
+        for count in range(1, 5):
+            with self.subTest(count=count):
+                groups = GROUPS[:count]
+                commands = []
+
+                async def send(on, targets):
+                    commands.append((on, targets))
+
+                controller = ChandelierController(groups, lambda: ["off"] * count, send)
+                controller.set_enabled(True)
+                for _ in range(count + 2):
+                    await controller.async_press(controller.capture_press(), "test")
+                self.assertEqual(
+                    commands,
+                    [(True, groups)] + [(False, (group,)) for group in groups] + [(True, groups)],
+                )
+                self.assertEqual(controller.expected, ("on",) * count)
+
+    async def test_timeout_and_feedback_for_reduced_groups(self):
+        for count in range(1, 4):
+            with self.subTest(count=count):
+                now = [0.0]
+                states = ["off"] * count
+                commands = []
+
+                async def send(on, targets):
+                    commands.append((on, targets))
+
+                controller = ChandelierController(
+                    GROUPS[:count], lambda: states, send, clock=lambda: now[0]
+                )
+                controller.set_enabled(True)
+                await controller.async_press(controller.capture_press(), "test")
+                states[:] = ["on"] * count
+                controller.check_feedback()
+                self.assertIsNone(controller.expected)
+                now[0] = 3.1
+                await controller.async_press(controller.capture_press(), "test")
+                self.assertEqual(commands[-1], (False, GROUPS[:count]))
+                self.assertEqual(controller.expected, ("off",) * count)
+
+    async def test_empty_too_many_and_duplicate_groups_are_rejected(self):
+        for groups in ([], ["switch.same"] * 2, [f"switch.g{i}" for i in range(5)]):
+            with self.subTest(groups=groups), self.assertRaises(ValueError):
+                ChandelierController(groups, lambda: [], None)

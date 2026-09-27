@@ -513,3 +513,66 @@ class HomeAssistantRuntimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(errors["night_light"], "night_light_in_use")
         _, errors = _validate(fake_hass, self.config | {"group_1": "switch.other_night"})
         self.assertEqual(errors["base"], "groups_in_use")
+
+    async def test_group_form_clears_optional_slots_without_restoring_old_defaults(self):
+        import voluptuous as vol
+
+        from custom_components.home_control.config_flow import _schema, _validate
+        from custom_components.home_control.const import selected_groups
+
+        schema = vol.Schema(_schema(self.config))
+        data = {k: v for k, v in self.config.items() if k not in ("group_2", "group_3", "group_4")}
+        submitted = schema(data)
+        self.assertNotIn("group_2", submitted)
+        fake_hass = SimpleNamespace(
+            states=self.hass.states, config_entries=SimpleNamespace(async_entries=lambda domain: [])
+        )
+        options, errors = _validate(fake_hass, submitted)
+        self.assertEqual(errors, {})
+        self.assertEqual(selected_groups(self.config | options), ("switch.group_1",))
+        for key in ("group_2", "group_3", "group_4"):
+            self.assertEqual(options[key], "")
+        _, errors = _validate(fake_hass, data | {"group_1": ""})
+        self.assertEqual(errors["group_1"], "group_required")
+
+    async def test_sparse_group_fields_keep_order_and_ignore_blank_ownership(self):
+        from custom_components.home_control.config_flow import _validate
+        from custom_components.home_control.const import selected_groups
+
+        other = SimpleNamespace(
+            entry_id="other",
+            data={
+                "group_1": "switch.other",
+                "mqtt_topic": "other/RESULT",
+                "mqtt_button": "Button4",
+            },
+            options={},
+        )
+        fake_hass = SimpleNamespace(
+            states=self.hass.states,
+            config_entries=SimpleNamespace(async_entries=lambda domain: [other]),
+        )
+        data = self.config | {"group_2": "", "group_4": ""}
+        cleaned, errors = _validate(fake_hass, data)
+        self.assertEqual(errors, {})
+        self.assertEqual(selected_groups(cleaned), ("switch.group_1", "switch.group_3"))
+
+    async def test_runtime_reduces_existing_four_group_entry_through_options(self):
+        from custom_components.home_control.runtime import HomeControlRuntime
+
+        self.entry.options = {"group_2": "", "group_4": ""}
+        await self.runtime.async_stop()
+        self.runtime = HomeControlRuntime(self.hass, self.entry)
+        await self.runtime.async_start()
+        await self.runtime.async_set_enabled(True)
+        for _ in range(4):
+            await self.runtime.async_press()
+        self.assertEqual(
+            self.commands,
+            [
+                ("turn_on", ["switch.group_1", "switch.group_3"]),
+                ("turn_off", ["switch.group_1"]),
+                ("turn_off", ["switch.group_3"]),
+                ("turn_on", ["switch.group_1", "switch.group_3"]),
+            ],
+        )

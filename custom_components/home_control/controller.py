@@ -57,8 +57,8 @@ class ChandelierController:
         clock: Callable[[], float] = time.monotonic,
         changed: Callable[[], None] = lambda: None,
     ) -> None:
-        if len(groups) != 4 or len(set(groups)) != 4:
-            raise ValueError("Exactly four distinct switches are required")
+        if not 1 <= len(groups) <= 4 or len(set(groups)) != len(groups):
+            raise ValueError("One to four distinct switches are required")
         if not 0.2 <= window <= 30 or not 1 <= feedback_timeout <= 60:
             raise ValueError("Invalid timing configuration")
         self.groups = tuple(groups)
@@ -130,7 +130,7 @@ class ChandelierController:
                 return
             self.last_source = source
             states = tuple(self.read_states())
-            if len(states) != 4 or any(s not in ("on", "off") for s in states):
+            if len(states) != len(self.groups) or any(s not in ("on", "off") for s in states):
                 self._fail("unavailable_group")
                 return
             generation = self._generation
@@ -140,15 +140,15 @@ class ChandelierController:
 
             active = self.deadline is not None and press.at <= self.deadline
             if active and self.step is not None:
-                next_step = 4 if self.step == 0 else self.step - 1
-                on = next_step == 4
-                targets = self.groups if on else (self.groups[3 - next_step],)
+                next_step = len(self.groups) if self.step == 0 else self.step - 1
+                on = next_step == len(self.groups)
+                targets = self.groups if on else (self.groups[len(self.groups) - 1 - next_step],)
             else:
                 # Briefly trust an unconfirmed command even after selection
                 # expires, so delayed feedback cannot start the wrong cycle.
                 baseline = self.expected if self.expected is not None else states
                 on = all(s == "off" for s in baseline)
-                next_step = 4 if on else 0
+                next_step = len(self.groups) if on else 0
                 targets = self.groups
 
             # Suspend the previous feedback timer while a new service is in
@@ -168,7 +168,7 @@ class ChandelierController:
                 return
             self.step = next_step
             self.deadline = press.at + self.window
-            self.expected = ("off",) * (4 - next_step) + ("on",) * next_step
+            self.expected = ("off",) * (len(self.groups) - next_step) + ("on",) * next_step
             self.feedback_due = self.clock() + self.feedback_timeout
             self.last_error = None
             self.changed()

@@ -1,4 +1,4 @@
-"""UI setup and options for an ordered four-group chandelier."""
+"""UI setup and options for an ordered one-to-four-group chandelier."""
 
 from __future__ import annotations
 
@@ -8,13 +8,18 @@ from homeassistant.components import mqtt
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 
-from .const import DEFAULT_FEEDBACK_TIMEOUT, DEFAULT_WINDOW, DOMAIN, GROUP_KEYS
+from .const import DEFAULT_FEEDBACK_TIMEOUT, DEFAULT_WINDOW, DOMAIN, GROUP_KEYS, selected_groups
 
 
 def _schema(values):
     fields = {}
     for key in GROUP_KEYS:
-        marker = vol.Required(key, default=values[key]) if key in values else vol.Required(key)
+        if key == GROUP_KEYS[0]:
+            marker = (
+                vol.Required(key, default=values[key]) if values.get(key) else vol.Required(key)
+            )
+        else:
+            marker = vol.Optional(key, description={"suggested_value": values.get(key, "")})
         fields[marker] = selector.EntitySelector(selector.EntitySelectorConfig(domain="switch"))
     fields[vol.Required("mqtt_topic", default=values.get("mqtt_topic", ""))] = str
     fields[vol.Required("mqtt_button", default=values.get("mqtt_button", "Button4"))] = str
@@ -39,6 +44,8 @@ def _schema(values):
 
 def _validate(hass, values, *, exclude_id=None):
     data = dict(values)
+    for key in GROUP_KEYS:
+        data[key] = data.get(key) or ""
     data["input_button"] = data.get("input_button", "")
     data["night_light"] = data.get("night_light") or ""
     data["mqtt_topic"] = data["mqtt_topic"].strip()
@@ -50,8 +57,11 @@ def _validate(hass, values, *, exclude_id=None):
         errors["mqtt_topic"] = "invalid_topic"
     if not data["mqtt_button"]:
         errors["mqtt_button"] = "invalid_button"
-    groups = {data[k] for k in GROUP_KEYS}
-    if len(groups) != 4:
+    configured = selected_groups(data)
+    groups = set(configured)
+    if not data["group_1"]:
+        errors["group_1"] = "group_required"
+    if len(groups) != len(configured):
         errors["base"] = "duplicate_groups"
     for entity_id in groups:
         if not entity_id.startswith("switch.") or hass.states.get(entity_id) is None:
@@ -72,7 +82,7 @@ def _validate(hass, values, *, exclude_id=None):
         if entry.entry_id == exclude_id:
             continue
         other = dict(entry.data) | dict(entry.options)
-        other_groups = {other[k] for k in GROUP_KEYS}
+        other_groups = set(selected_groups(other))
         if data["night_light"] and (
             data["night_light"] == other.get("night_light") or data["night_light"] in other_groups
         ):

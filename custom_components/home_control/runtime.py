@@ -13,7 +13,7 @@ from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.storage import Store
 from homeassistant.util.dt import parse_datetime
 
-from .const import DOMAIN, GROUP_KEYS, SERVICE_TIMEOUT
+from .const import DOMAIN, SERVICE_TIMEOUT, selected_groups
 from .controller import ChandelierController, button_action
 
 
@@ -35,7 +35,7 @@ class HomeControlRuntime:
         self._night_expected: str | None = None
         self._night_expected_until = 0.0
         self.controller = ChandelierController(
-            [self.config[k] for k in GROUP_KEYS],
+            selected_groups(self.config),
             self._states,
             self._send,
             window=self.config["selection_window"],
