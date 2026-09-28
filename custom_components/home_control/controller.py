@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import time
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
@@ -75,6 +76,7 @@ class ChandelierController:
         self.feedback_due: float | None = None
         self.last_error: str | None = None
         self.last_source: str | None = None
+        self.last_pattern = ("on",) * len(self.groups)
         self._generation = 0
         self._lock = asyncio.Lock()
 
@@ -112,6 +114,7 @@ class ChandelierController:
         if self.expected is None:
             return
         if tuple(self.read_states()) == self.expected:
+            self._remember(self.expected)
             self.expected = self.feedback_due = None
             self.changed()
         elif self.feedback_due is not None and self.clock() >= self.feedback_due:
@@ -155,6 +158,8 @@ class ChandelierController:
             if generation != self._generation:
                 return
 
+            if self.expected is None:
+                self._remember(states)
             next_step, expected, commands = self._plan(press, states)
 
             # Suspend the previous feedback timer while a new service is in
@@ -182,6 +187,90 @@ class ChandelierController:
             self.expected = expected
             self.feedback_due = self.clock() + self.feedback_timeout
             self.last_error = None
+            if tuple(self.read_states()) == expected:
+                self._remember(expected)
+            self.changed()
+
+    def _remember(self, states):
+        if (
+            len(states) == len(self.groups)
+            and all(s in ("on", "off") for s in states)
+            and "on" in states
+        ):
+            self.last_pattern = tuple(states)
+
+    async def async_light(self, press: Press | None, on: bool, brightness=None) -> None:
+        """Absolute light commands share the button/HOLD lock and maintenance gate."""
+        if press is None:
+            return
+        async with self._lock:
+            if not self.enabled or press.generation != self._generation:
+                return
+            if self.clock() - press.at > 10:
+                self._fail("stale_press")
+                return
+            states = tuple(self.read_states())
+            if len(states) != len(self.groups) or any(s not in ("on", "off") for s in states):
+                self._fail("unavailable_group")
+                return
+            generation = self._generation
+            self.check_feedback()
+            if generation != self._generation:
+                return
+            baseline = self.expected if self.expected is not None else states
+            if self.expected is None:
+                self._remember(states)
+            self.last_source = "light"
+            if not on or brightness == 0:
+                target = ("off",) * len(self.groups)
+            elif brightness is None:
+                if "on" in baseline:
+                    self.changed()
+                    return
+                target = self.last_pattern
+            else:
+                if type(brightness) is not int or not 1 <= brightness <= 255:
+                    raise ValueError("Brightness must be an integer from 0 to 255")
+                # Round to the nearest supported step; round-trips HA's 0..255 values.
+                count = max(
+                    1, min(len(self.groups), math.floor(brightness * len(self.groups) / 255 + 0.5))
+                )
+                target = ("off",) * (len(self.groups) - count) + ("on",) * count
+            if target == baseline:
+                self.changed()
+                return
+            self.expected = self.feedback_due = None
+            self.changed()
+            try:
+                for enable in (False, True):
+                    desired = "on" if enable else "off"
+                    targets = tuple(
+                        group
+                        for group, before, after in zip(self.groups, baseline, target, strict=True)
+                        if before != after and after == desired
+                    )
+                    if not self.enabled or generation != self._generation:
+                        return
+                    if targets:
+                        await self.send(enable, targets)
+            except asyncio.CancelledError:
+                self._fail("command_cancelled")
+                raise
+            except Exception:
+                _LOGGER.exception("Light command failed")
+                self._fail("command_failed")
+                return
+            if not self.enabled or generation != self._generation:
+                return
+            count = target.count("on")
+            canonical = ("off",) * (len(self.groups) - count) + ("on",) * count
+            self.step = count if target == canonical else None
+            self.deadline = press.at + self.window if self.step is not None else None
+            self.expected = target
+            self.feedback_due = self.clock() + self.feedback_timeout
+            self.last_error = None
+            if tuple(self.read_states()) == target:
+                self._remember(target)
             self.changed()
 
     async def async_hold(self, press: Press | None, action: Callable[[], Awaitable[None]]) -> None:

@@ -13,7 +13,7 @@ from .process_config import PROCESS_TYPES
 from .process_runtime import ProcessRuntime
 from .runtime import HomeControlRuntime
 
-PLATFORMS = [Platform.SWITCH, Platform.BUTTON, Platform.FAN]
+PLATFORMS = [Platform.SWITCH, Platform.BUTTON, Platform.FAN, Platform.LIGHT]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

@@ -4,7 +4,7 @@
     "step": {
       "lighting": {
         "title": "Local lighting control",
-        "description": "Chandelier: 1–4 groups in turn-off order. Kitchen: all 4 groups, cycle 0000 → 1000 → 1100 → 1110 → 0010 → 0001 → 0000. Every press refreshes the selection window. New processes start disabled; saving options resets selection without switching lights.",
+        "description": "Chandelier: 1–4 groups in turn-off order. Kitchen: all 4 groups, cycle 0000 → 1000 → 1100 → 1110 → 0010 → 0001 → 0000. Every press refreshes the selection window. New processes start disabled; saving options resets selection without switching lights. Chandelier mode also creates one light with discrete brightness steps and saved group combinations.",
         "data": {
           "name": "Process name",
           "group_1": "Group 1",

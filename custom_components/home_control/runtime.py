@@ -31,6 +31,10 @@ class HomeControlRuntime:
         self._selection_timer: asyncio.TimerHandle | None = None
         self._tasks: set[asyncio.Task] = set()
         self._toggle_lock = asyncio.Lock()
+        self._store_lock = asyncio.Lock()
+        self._stored_enabled = False
+        self._loading = True
+        self._memory_seen = None
         self._stopped = False
         self._night_expected: str | None = None
         self._night_expected_until = 0.0
@@ -46,6 +50,42 @@ class HomeControlRuntime:
             clock=hass.loop.time,
             changed=self._changed,
         )
+
+    @property
+    def has_group_light(self):
+        return not isinstance(self.controller, KitchenController)
+
+    async def _save_state(self):
+        async with self._store_lock:
+            data = {"enabled": self._stored_enabled}
+            if self.has_group_light:
+                data.update(
+                    groups=list(self.controller.groups),
+                    last_pattern=list(self.controller.last_pattern),
+                )
+            await self.store.async_save(data)
+
+    async def _save_memory(self):
+        try:
+            await self._save_state()
+        except Exception:
+            self.controller.last_error = "storage_failed"
+            self._changed()
+
+    @callback
+    def _groups_changed(self, event):
+        self.controller.check_feedback()
+        self._changed()
+
+    async def async_light(self, on, brightness=None):
+        if not self.has_group_light or self._stopped or not self.controller.enabled:
+            raise HomeAssistantError("Lighting automation is disabled")
+        await self.controller.async_light(self.controller.capture_press(), on, brightness)
+        # Persist confirmed changes before completing a user-facing service call.
+        if self._tasks:
+            await asyncio.gather(*tuple(self._tasks))
+        if self.controller.last_error:
+            raise HomeAssistantError(self.controller.last_error)
 
     def _states(self):
         return [
@@ -91,6 +131,15 @@ class HomeControlRuntime:
 
     @callback
     def _changed(self) -> None:
+        if (
+            self.has_group_light
+            and not self._loading
+            and self._memory_seen != self.controller.last_pattern
+        ):
+            self._memory_seen = self.controller.last_pattern
+            task = self.hass.async_create_task(self._save_memory())
+            self._tasks.add(task)
+            task.add_done_callback(self._tasks.discard)
         if not self.controller.enabled:
             self._night_expected = None
             self._night_expected_until = 0.0
@@ -167,7 +216,29 @@ class HomeControlRuntime:
         stored = await self.store.async_load()
         # Absent/invalid persisted state must not activate automation.
         enabled = isinstance(stored, dict) and stored.get("enabled") is True
+        self._stored_enabled = enabled
+        if (
+            self.has_group_light
+            and isinstance(stored, dict)
+            and stored.get("groups") == list(self.controller.groups)
+        ):
+            pattern = stored.get("last_pattern")
+            if (
+                isinstance(pattern, list)
+                and len(pattern) == len(self.controller.groups)
+                and all(s in ("on", "off") for s in pattern)
+                and "on" in pattern
+            ):
+                self.controller.last_pattern = tuple(pattern)
+        self._memory_seen = self.controller.last_pattern
+        self._loading = False
         self.controller.set_enabled(enabled)
+        if self.has_group_light:
+            self._unsubscribers.append(
+                async_track_state_change_event(
+                    self.hass, list(self.controller.groups), self._groups_changed
+                )
+            )
         self._unsubscribers.append(
             await mqtt.async_subscribe(
                 self.hass, self.config["mqtt_topic"], self._mqtt_message, qos=0
@@ -191,8 +262,10 @@ class HomeControlRuntime:
             self.controller.set_enabled(False)
             await self.controller.async_wait_idle()
             try:
-                await self.store.async_save({"enabled": enabled})
+                self._stored_enabled = enabled
+                await self._save_state()
             except Exception:
+                self._stored_enabled = False
                 self.controller.last_error = "storage_failed"
                 self._changed()
                 raise

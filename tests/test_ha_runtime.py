@@ -244,6 +244,15 @@ class HomeAssistantRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 any(s.entity_id.startswith("button.lifecycle_") for s in entities),
                 self.config.get("process_type") not in ("motion", "shared_fan", "humidity", "hood"),
             )
+            group_lights = [s for s in entities if s.entity_id.startswith("light.lifecycle")]
+            has_group_light = (
+                self.config.get("process_type") is None and self.config.get("mode") != "kitchen"
+            )
+            self.assertEqual(bool(group_lights), has_group_light)
+            if has_group_light:
+                self.assertEqual(
+                    group_lights[0].attributes["supported_color_modes"], ["brightness"]
+                )
             loaded_runtime = entry.runtime_data
             self.assertTrue(await self.hass.config_entries.async_unload(entry.entry_id))
             self.assertFalse(loaded_runtime.controller.enabled)
