@@ -13,8 +13,9 @@ from .hood import HoodRuntime
 from .process_config import PROCESS_TYPES
 from .process_runtime import ProcessRuntime
 from .runtime import HomeControlRuntime
+from .valve import ValveRuntime
 
-PLATFORMS = [Platform.SWITCH, Platform.BUTTON, Platform.FAN, Platform.LIGHT]
+PLATFORMS = [Platform.SWITCH, Platform.BUTTON, Platform.FAN, Platform.LIGHT, Platform.BINARY_SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -22,11 +23,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hood = (dict(entry.data) | dict(entry.options)).get("process_type") == "hood"
     config = dict(entry.data) | dict(entry.options)
     doorbell = config.get("process_type") == "doorbell"
-    needs_mqtt = config.get("source") == "mqtt" if doorbell else not environmental and not hood
+    valve = config.get("process_type") == "valve_exercise"
+    needs_mqtt = (
+        config.get("source") == "mqtt" if doorbell else not environmental and not hood and not valve
+    )
     if needs_mqtt and not await mqtt.async_wait_for_mqtt_client(hass):
         raise ConfigEntryNotReady("Configure MQTT before Home Control")
     runtime = (
-        DoorbellRuntime(hass, entry)
+        ValveRuntime(hass, entry)
+        if valve
+        else DoorbellRuntime(hass, entry)
         if doorbell
         else HoodRuntime(hass, entry)
         if hood

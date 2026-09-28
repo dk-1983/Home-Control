@@ -34,9 +34,11 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 "boost_fans",
                 "room_light",
                 "humidity_sensor",
+                "valves",
+                "leak_sensors",
             },
         ),
         "enabled": runtime.controller.enabled,
-        "controller": runtime.attributes,
+        "controller": async_redact_data(runtime.attributes, {"active_valve", "valves"}),
         "reported_states": runtime._states(),
     }

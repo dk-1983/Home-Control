@@ -28,7 +28,8 @@
           "shared_fan": "Shared extraction",
           "humidity": "Humidity ventilation",
           "hood": "Kitchen hood",
-          "doorbell": "Doorbell"
+          "doorbell": "Doorbell",
+          "valve_exercise": "Valve exercise"
         }
       },
       "motion": {
@@ -139,6 +140,21 @@
         "data": {
           "interval": "Interval"
         }
+      },
+      "valve_exercise": {
+        "title": "Valve exercise",
+        "description": "One entry per protection group. Valve states must represent limit-switch feedback. Uses HA states without hardware polling. Closed valves are deferred. Failed or interrupted cycles require a manual run. The manual button also exercises healthy valves again. Starts disabled.",
+        "data": {
+          "name": "Group name",
+          "valves": "Valves (off = open, on = closed)",
+          "leak_sensors": "Leak sensors (on = wet)",
+          "schedule_day": "Day of month",
+          "schedule_time": "Exercise time",
+          "retry_hours": "Deferred retry interval (hours)",
+          "movement_timeout": "Movement timeout (seconds)",
+          "closed_hold": "Closed hold (seconds)",
+          "between_valves": "Delay between valves (seconds)"
+        }
       }
     },
     "error": {
@@ -160,7 +176,8 @@
       "hood_readback_required": "Select four distinct relays of one M3000-BB-1020 from the loaded Modbus Devices 1.9.0 integration. Other drivers are not supported yet.",
       "doorbell_url": "Enter an HTTP(S) URL ending in .mp3.",
       "doorbell_payload": "Enter the press payload.",
-      "doorbell_interval": "Check times, weekdays, speakers and overlapping intervals."
+      "doorbell_interval": "Check times, weekdays, speakers and overlapping intervals.",
+      "valve_entities": "Select distinct existing equipment entities; the list must not be empty."
     }
   },
   "options": {
@@ -285,6 +302,20 @@
         "data": {
           "interval": "Interval"
         }
+      },
+      "valve_exercise": {
+        "title": "Valve exercise",
+        "description": "One entry per protection group. Valve states must represent limit-switch feedback. Uses HA states without hardware polling. Closed valves are deferred. Failed or interrupted cycles require a manual run. The manual button also exercises healthy valves again. Starts disabled.",
+        "data": {
+          "valves": "Valves (off = open, on = closed)",
+          "leak_sensors": "Leak sensors (on = wet)",
+          "schedule_day": "Day of month",
+          "schedule_time": "Exercise time",
+          "retry_hours": "Deferred retry interval (hours)",
+          "movement_timeout": "Movement timeout (seconds)",
+          "closed_hold": "Closed hold (seconds)",
+          "between_valves": "Delay between valves (seconds)"
+        }
       }
     },
     "error": {
@@ -306,7 +337,8 @@
       "hood_readback_required": "Select four distinct relays of one M3000-BB-1020 from the loaded Modbus Devices 1.9.0 integration. Other drivers are not supported yet.",
       "doorbell_url": "Enter an HTTP(S) URL ending in .mp3.",
       "doorbell_payload": "Enter the press payload.",
-      "doorbell_interval": "Check times, weekdays, speakers and overlapping intervals."
+      "doorbell_interval": "Check times, weekdays, speakers and overlapping intervals.",
+      "valve_entities": "Select distinct existing equipment entities; the list must not be empty."
     }
   },
   "entity": {
@@ -321,6 +353,14 @@
       },
       "ring": {
         "name": "Ring"
+      },
+      "exercise": {
+        "name": "Start exercise"
+      }
+    },
+    "binary_sensor": {
+      "group_leak": {
+        "name": "Group leak"
       }
     }
   },

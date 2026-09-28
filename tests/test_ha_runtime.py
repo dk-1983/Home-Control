@@ -253,6 +253,12 @@ class HomeAssistantRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(
                     group_lights[0].attributes["supported_color_modes"], ["brightness"]
                 )
+            if self.config.get("process_type") == "valve_exercise":
+                protection = [
+                    s for s in entities if s.entity_id.startswith("binary_sensor.lifecycle")
+                ]
+                self.assertEqual(len(protection), 1)
+                self.assertEqual(protection[0].state, "off")
             loaded_runtime = entry.runtime_data
             self.assertTrue(await self.hass.config_entries.async_unload(entry.entry_id))
             self.assertFalse(loaded_runtime.controller.enabled)

@@ -16,6 +16,9 @@ class ChandelierButton(HomeControlEntity, ButtonEntity):
 
     def __init__(self, runtime) -> None:
         super().__init__(runtime, "press")
+        if runtime.config.get("process_type") == "valve_exercise":
+            self._attr_translation_key = "exercise"
+            self._attr_icon = "mdi:valve"
         if runtime.config.get("process_type") == "doorbell":
             self._attr_translation_key = "ring"
             self._attr_icon = "mdi:doorbell"

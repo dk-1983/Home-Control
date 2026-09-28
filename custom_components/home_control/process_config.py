@@ -57,6 +57,8 @@ INTEGERS = {"window_size", "minimum_samples", "stable_windows_required"}
 
 
 def owned_outputs(data):
+    if data.get("process_type") == "valve_exercise":
+        return set(data.get("valves", []))
     if data.get("process_type") == "hood":
         return {
             data[key] for key in ("speed_25", "speed_50", "speed_75", "speed_100") if data.get(key)

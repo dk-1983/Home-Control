@@ -12,6 +12,7 @@ from .const import DEFAULT_FEEDBACK_TIMEOUT, DEFAULT_WINDOW, DOMAIN, GROUP_KEYS,
 from .doorbell_config import DoorbellFlowMixin
 from .hood_config import hood_schema, validate_hood
 from .process_config import PROCESS_TYPES, owned_outputs, process_schema, validate_process
+from .valve_config import ValveFlowMixin
 
 
 def _schema(values):
@@ -119,7 +120,9 @@ def _validate(hass, values, *, exclude_id=None):
     return data, errors
 
 
-class HomeControlConfigFlow(DoorbellFlowMixin, config_entries.ConfigFlow, domain=DOMAIN):
+class HomeControlConfigFlow(
+    ValveFlowMixin, DoorbellFlowMixin, config_entries.ConfigFlow, domain=DOMAIN
+):
     VERSION = 1
 
     @staticmethod
@@ -132,7 +135,15 @@ class HomeControlConfigFlow(DoorbellFlowMixin, config_entries.ConfigFlow, domain
             return await self.async_step_lighting(user_input)
         return self.async_show_menu(
             step_id="user",
-            menu_options=["lighting", "motion", "shared_fan", "humidity", "hood", "doorbell"],
+            menu_options=[
+                "lighting",
+                "motion",
+                "shared_fan",
+                "humidity",
+                "hood",
+                "doorbell",
+                "valve_exercise",
+            ],
         )
 
     async def async_step_motion(self, user_input=None):
@@ -194,10 +205,12 @@ class HomeControlConfigFlow(DoorbellFlowMixin, config_entries.ConfigFlow, domain
         )
 
 
-class HomeControlOptionsFlow(DoorbellFlowMixin, config_entries.OptionsFlow):
+class HomeControlOptionsFlow(ValveFlowMixin, DoorbellFlowMixin, config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         current = dict(self.config_entry.data) | dict(self.config_entry.options)
         kind = current.get("process_type")
+        if kind == "valve_exercise":
+            return await self.async_step_valve_exercise(user_input)
         if kind == "doorbell":
             return await self.async_step_doorbell(user_input)
         if kind == "hood":
