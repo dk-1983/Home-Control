@@ -255,3 +255,26 @@ class DoorbellTests(unittest.IsolatedAsyncioTestCase):
         result = await flow.async_step_doorbell_finish()
         self.assertEqual(result["data"]["volume"], 0.2)
         self.assertEqual(self.entry.data["volume"], 0.4)
+
+    async def test_optional_source_fields_do_not_block_virtual_button_form(self):
+        import voluptuous as vol
+
+        from custom_components.home_control.doorbell_config import night_schema, schema, validate
+
+        form = schema({})
+        markers = {str(key): key for key in form.schema}
+        for key in ("mqtt_topic", "mqtt_payload", "mqtt_key", "source_entity"):
+            self.assertNotIsInstance(markers[key], vol.Required)
+        values = form({"speakers": self.config["speakers"], "media_url": self.config["media_url"]})
+        _, errors = validate(self.hass, values)
+        self.assertEqual(errors, {})
+        _, errors = validate(self.hass, dict(values, source="mqtt"))
+        self.assertIn("mqtt_topic", errors)
+        self.assertIn("mqtt_payload", errors)
+        _, errors = validate(self.hass, dict(values, source="binary_sensor"))
+        self.assertIn("source_entity", errors)
+        night = night_schema({})
+        self.assertNotIsInstance(
+            next(k for k in night.schema if str(k) == "speakers"), vol.Required
+        )
+        self.assertEqual(night({})["speakers"], [])

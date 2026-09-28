@@ -78,7 +78,8 @@ def schema(values, name=False):
         ("mqtt_payload", "", str),
         ("mqtt_key", "", str),
     ):
-        fields[vol.Required(key, default=values.get(key, default))] = validator
+        marker = vol.Optional if key.startswith("mqtt_") else vol.Required
+        fields[marker(key, default=values.get(key, default))] = validator
     fields[
         vol.Optional("source_entity", description={"suggested_value": values.get("source_entity")})
     ] = entities(["binary_sensor", "input_button"])
@@ -113,7 +114,8 @@ def night_schema(values):
         ("volume", 0.2, vol.All(vol.Coerce(float), vol.Range(min=0, max=1))),
         ("speakers", [], entities("media_player", True)),
     ):
-        fields[vol.Required(key, default=values.get(key, default))] = validator
+        marker = vol.Optional if key == "speakers" else vol.Required
+        fields[marker(key, default=values.get(key, default))] = validator
     return vol.Schema(fields)
 
 
