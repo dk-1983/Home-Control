@@ -242,12 +242,15 @@ class HomeAssistantRuntimeTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(any(s.entity_id.startswith("switch.lifecycle_") for s in entities))
             self.assertEqual(
                 any(s.entity_id.startswith("button.lifecycle_") for s in entities),
-                self.config.get("process_type") not in ("motion", "shared_fan", "humidity"),
+                self.config.get("process_type") not in ("motion", "shared_fan", "humidity", "hood"),
             )
             loaded_runtime = entry.runtime_data
             self.assertTrue(await self.hass.config_entries.async_unload(entry.entry_id))
             self.assertFalse(loaded_runtime.controller.enabled)
-            self.assertIsNone(loaded_runtime._timer)
+            self.assertIsNone(getattr(loaded_runtime, "_timer", None))
+            if self.config.get("process_type") == "hood":
+                self.assertTrue(any(s.entity_id.startswith("fan.lifecycle") for s in entities))
+                self.assertIsNone(loaded_runtime._input_timer)
 
     def _configure_night_light(self):
         self.runtime.config["night_light"] = "light.night_light"

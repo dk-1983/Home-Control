@@ -9,6 +9,14 @@ async def async_get_config_entry_diagnostics(hass, entry):
         "config": async_redact_data(
             runtime.config,
             {
+                "speed_25",
+                "speed_50",
+                "speed_75",
+                "speed_100",
+                "input_25",
+                "input_50",
+                "input_75",
+                "input_100",
                 "group_1",
                 "group_2",
                 "group_3",

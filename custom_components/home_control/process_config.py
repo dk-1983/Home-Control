@@ -57,6 +57,10 @@ INTEGERS = {"window_size", "minimum_samples", "stable_windows_required"}
 
 
 def owned_outputs(data):
+    if data.get("process_type") == "hood":
+        return {
+            data[key] for key in ("speed_25", "speed_50", "speed_75", "speed_100") if data.get(key)
+        }
     if data.get("process_type") in PROCESS_TYPES:
         return {data["output"]} if data.get("output") else set()
     return {data[key] for key in (*GROUP_KEYS, "night_light") if data.get(key)}

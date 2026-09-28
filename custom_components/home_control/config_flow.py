@@ -9,6 +9,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import DEFAULT_FEEDBACK_TIMEOUT, DEFAULT_WINDOW, DOMAIN, GROUP_KEYS, selected_groups
+from .hood_config import hood_schema, validate_hood
 from .process_config import PROCESS_TYPES, owned_outputs, process_schema, validate_process
 
 
@@ -93,6 +94,7 @@ def _validate(hass, values, *, exclude_id=None):
             "local_motion",
             "local_shared_fan",
             "local_humidity",
+            "local_hood",
         ):
             errors["night_light"] = "automation_not_light"
     for entry in hass.config_entries.async_entries(DOMAIN):
@@ -128,7 +130,7 @@ class HomeControlConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             return await self.async_step_lighting(user_input)
         return self.async_show_menu(
-            step_id="user", menu_options=["lighting", "motion", "shared_fan", "humidity"]
+            step_id="user", menu_options=["lighting", "motion", "shared_fan", "humidity", "hood"]
         )
 
     async def async_step_motion(self, user_input=None):
@@ -139,6 +141,19 @@ class HomeControlConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_humidity(self, user_input=None):
         return await self._environment_step("humidity", user_input)
+
+    async def async_step_hood(self, user_input=None):
+        errors = {}
+        if user_input is not None:
+            data, errors = validate_hood(self.hass, user_input)
+            name = data.pop("name", "").strip()
+            if not name:
+                errors["name"] = "invalid_name"
+            if not errors:
+                return self.async_create_entry(title=name, data=data)
+        return self.async_show_form(
+            step_id="hood", data_schema=hood_schema(user_input or {}, name=True), errors=errors
+        )
 
     async def _environment_step(self, kind, user_input):
         errors = {}
@@ -181,6 +196,8 @@ class HomeControlOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         current = dict(self.config_entry.data) | dict(self.config_entry.options)
         kind = current.get("process_type")
+        if kind == "hood":
+            return await self.async_step_hood(user_input)
         if kind in PROCESS_TYPES:
             return await self._environment_options(kind, current, user_input)
         errors = {}
@@ -219,3 +236,18 @@ class HomeControlOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_humidity(self, user_input=None):
         return await self.async_step_init(user_input)
+
+    async def async_step_hood(self, user_input=None):
+        current = dict(self.config_entry.data) | dict(self.config_entry.options)
+        errors = {}
+        if user_input is not None:
+            data, errors = validate_hood(
+                self.hass, user_input, exclude_id=self.config_entry.entry_id
+            )
+            if not errors:
+                return self.async_create_entry(title="", data=data)
+        return self.async_show_form(
+            step_id="hood",
+            data_schema=hood_schema(current if user_input is None else user_input),
+            errors=errors,
+        )

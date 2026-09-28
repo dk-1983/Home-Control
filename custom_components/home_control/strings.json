@@ -26,7 +26,8 @@
           "lighting": "Button lighting",
           "motion": "Motion lighting",
           "shared_fan": "Shared extraction",
-          "humidity": "Humidity ventilation"
+          "humidity": "Humidity ventilation",
+          "hood": "Kitchen hood"
         }
       },
       "motion": {
@@ -74,6 +75,24 @@
           "sensor_max_age": "Maximum sensor report age (seconds)",
           "feedback_timeout": "Command feedback timeout (seconds)"
         }
+      },
+      "hood": {
+        "title": "Kitchen hood",
+        "description": "Four relays with Modbus Devices readback. Configure all four panel inputs or none. Saved speed is used only on a turn-on request. New processes start disabled; lighting is configured separately.",
+        "data": {
+          "name": "Process name",
+          "speed_25": "Speed 25% relay",
+          "input_25": "Panel input 25% (optional)",
+          "speed_50": "Speed 50% relay",
+          "input_50": "Panel input 50% (optional)",
+          "speed_75": "Speed 75% relay",
+          "input_75": "Panel input 75% (optional)",
+          "speed_100": "Speed 100% relay",
+          "input_100": "Panel input 100% (optional)",
+          "feedback_timeout": "Readback timeout (seconds)",
+          "break_delay": "All-off break (seconds)",
+          "input_settle": "Panel input settling time (seconds)"
+        }
       }
     },
     "error": {
@@ -90,7 +109,9 @@
       "kitchen_requires_four": "Kitchen mode requires all four lighting groups.",
       "invalid_mode": "Choose a lighting algorithm.",
       "output_is_input": "The controlled output cannot also be its own input.",
-      "invalid_parameters": "Check window size, trend thresholds and maximum report age."
+      "invalid_parameters": "Check window size, trend thresholds and maximum report age.",
+      "hood_inputs_complete": "Select all four panel inputs or leave all empty.",
+      "hood_readback_required": "A Modbus Devices relay with readback attributes is required. Update Modbus Devices."
     }
   },
   "options": {
@@ -154,6 +175,23 @@
           "sensor_max_age": "Maximum sensor report age (seconds)",
           "feedback_timeout": "Command feedback timeout (seconds)"
         }
+      },
+      "hood": {
+        "title": "Kitchen hood",
+        "description": "Four relays with Modbus Devices readback. Configure all four panel inputs or none. Saved speed is used only on a turn-on request. New processes start disabled; lighting is configured separately.",
+        "data": {
+          "speed_25": "Speed 25% relay",
+          "input_25": "Panel input 25% (optional)",
+          "speed_50": "Speed 50% relay",
+          "input_50": "Panel input 50% (optional)",
+          "speed_75": "Speed 75% relay",
+          "input_75": "Panel input 75% (optional)",
+          "speed_100": "Speed 100% relay",
+          "input_100": "Panel input 100% (optional)",
+          "feedback_timeout": "Readback timeout (seconds)",
+          "break_delay": "All-off break (seconds)",
+          "input_settle": "Panel input settling time (seconds)"
+        }
       }
     },
     "error": {
@@ -170,7 +208,9 @@
       "kitchen_requires_four": "Kitchen mode requires all four lighting groups.",
       "invalid_mode": "Choose a lighting algorithm.",
       "output_is_input": "The controlled output cannot also be its own input.",
-      "invalid_parameters": "Check window size, trend thresholds and maximum report age."
+      "invalid_parameters": "Check window size, trend thresholds and maximum report age.",
+      "hood_inputs_complete": "Select all four panel inputs or leave all empty.",
+      "hood_readback_required": "A Modbus Devices relay with readback attributes is required. Update Modbus Devices."
     }
   },
   "entity": {
