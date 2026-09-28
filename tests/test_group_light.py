@@ -89,6 +89,36 @@ class GroupLightTests(unittest.IsolatedAsyncioTestCase):
         await self.light.async_turn_on()
         self.assertEqual(self.runtime._states(), ["off", "off", "on", "on"])
 
+    async def test_button_restores_then_reduces_saved_brightness(self):
+        await self.runtime.async_set_enabled(True)
+        await self.light.async_turn_on(brightness=191)
+        # An expired selection press switches off and retains 75%.
+        self.runtime.controller.deadline = 0
+        await self.runtime.async_press()
+        self.assertEqual(self.runtime._states(), ["off"] * 4)
+        for count in (3, 2, 1, 0, 1):
+            await self.runtime.async_press()
+            await self.hass.async_block_till_done()
+            self.assertEqual(self.runtime._states(), ["off"] * (4 - count) + ["on"] * count)
+        # Restoration is identical outside the selection window.
+        await self.light.async_turn_on(brightness=191)
+        await self.light.async_turn_off()
+        self.runtime.controller.deadline = 0
+        await self.runtime.async_press()
+        self.assertEqual(self.runtime._states(), ["off", "on", "on", "on"])
+
+    async def test_button_reduces_arbitrary_restored_pattern(self):
+        await self.runtime.async_set_enabled(True)
+        self.hass.states.async_set(self.groups[0], "on")
+        self.hass.states.async_set(self.groups[2], "on")
+        await self.light.async_turn_off()
+        await self.runtime.async_press()
+        self.assertEqual(self.runtime._states(), ["on", "off", "on", "off"])
+        await self.runtime.async_press()
+        self.assertEqual(self.runtime._states(), ["off", "off", "on", "off"])
+        await self.runtime.async_press()
+        self.assertEqual(self.runtime._states(), ["off"] * 4)
+
     async def test_restart_keeps_pattern_without_commands(self):
         from custom_components.home_control.light import GroupLight
         from custom_components.home_control.runtime import HomeControlRuntime
@@ -103,8 +133,10 @@ class GroupLightTests(unittest.IsolatedAsyncioTestCase):
         self.light = GroupLight(self.runtime)
         self.assertTrue(self.runtime.controller.enabled)
         self.assertEqual(self.commands, [])
-        await self.light.async_turn_on()
+        await self.runtime.async_press()
         self.assertEqual(self.runtime._states(), ["off", "off", "on", "on"])
+        await self.runtime.async_press()
+        self.assertEqual(self.runtime._states(), ["off", "off", "off", "on"])
 
     async def test_disabled_and_unknown_block_commands(self):
         with self.assertRaises(Exception):

@@ -124,19 +124,20 @@ class ChandelierController:
     def _plan(self, press: Press, states: tuple[str, ...]):
         """Return the next step, expected state and ordered service commands."""
         active = self.deadline is not None and press.at <= self.deadline
-        if active and self.step is not None:
-            next_step = len(self.groups) if self.step == 0 else self.step - 1
-            on = next_step == len(self.groups)
-            targets = self.groups if on else (self.groups[len(self.groups) - 1 - next_step],)
-        else:
-            # Briefly trust an unconfirmed command even after selection
-            # expires, so delayed feedback cannot start the wrong cycle.
-            baseline = self.expected if self.expected is not None else states
-            on = all(s == "off" for s in baseline)
-            next_step = len(self.groups) if on else 0
-            targets = self.groups
-        expected = ("off",) * (len(self.groups) - next_step) + ("on",) * next_step
-        return next_step, expected, ((on, targets),)
+        # Pending targets bridge delayed feedback; otherwise follow actual groups.
+        baseline = self.expected if self.expected is not None else states
+        if "on" not in baseline:
+            expected = self.last_pattern
+            targets = tuple(
+                group for group, state in zip(self.groups, expected, strict=True) if state == "on"
+            )
+            return expected.count("on"), expected, ((True, targets),)
+        if active:
+            # Also reduce nonstandard restored combinations in configured order.
+            index = baseline.index("on")
+            expected = baseline[:index] + ("off",) + baseline[index + 1 :]
+            return expected.count("on"), expected, ((False, (self.groups[index],)),)
+        return 0, ("off",) * len(self.groups), ((False, self.groups),)
 
     async def async_press(self, press: Press | None, source: str) -> None:
         if press is None:
