@@ -27,7 +27,8 @@
           "motion": "Motion lighting",
           "shared_fan": "Shared extraction",
           "humidity": "Humidity ventilation",
-          "hood": "Kitchen hood"
+          "hood": "Kitchen hood",
+          "doorbell": "Doorbell"
         }
       },
       "motion": {
@@ -93,6 +94,51 @@
           "break_delay": "All-off break (seconds)",
           "input_settle": "Panel input settling time (seconds)"
         }
+      },
+      "doorbell": {
+        "title": "Doorbell",
+        "description": "Starts disabled. The native Ring button obeys the schedule. Fill only fields for your selected source. Volume is restored after the configured duration; music is not resumed.",
+        "data": {
+          "name": "Name",
+          "speakers": "Daytime speakers",
+          "media_url": "MP3 HTTP URL",
+          "volume": "Daytime volume (0–1)",
+          "sound_duration": "Sound duration before restoring volume (seconds)",
+          "cooldown": "Cooldown (seconds)",
+          "source": "Input source",
+          "active_state": "Active sensor state",
+          "mqtt_topic": "MQTT topic",
+          "mqtt_payload": "MQTT press value",
+          "mqtt_key": "JSON field path (e.g. Button1.Action); empty for plain payload",
+          "source_entity": "Source entity"
+        }
+      },
+      "doorbell_schedule": {
+        "title": "Quiet intervals",
+        "description": "{intervals}",
+        "menu_options": {
+          "doorbell_night": "Add interval",
+          "doorbell_remove": "Remove interval",
+          "doorbell_finish": "Save"
+        }
+      },
+      "doorbell_night": {
+        "title": "Quiet interval",
+        "description": "Use whole minutes. Weekdays refer to the start date. To edit, remove the old interval and add a new one. Overlaps are rejected.",
+        "data": {
+          "start": "Start",
+          "end": "End",
+          "days": "Start weekdays",
+          "mode": "Mode",
+          "volume": "Volume (0–1)",
+          "speakers": "Speakers (sound mode)"
+        }
+      },
+      "doorbell_remove": {
+        "title": "Remove interval",
+        "data": {
+          "interval": "Interval"
+        }
       }
     },
     "error": {
@@ -111,7 +157,10 @@
       "output_is_input": "The controlled output cannot also be its own input.",
       "invalid_parameters": "Check window size, trend thresholds and maximum report age.",
       "hood_inputs_complete": "Select all four panel inputs or leave all empty.",
-      "hood_readback_required": "Select four distinct relays of one M3000-BB-1020 from the loaded Modbus Devices 1.9.0 integration. Other drivers are not supported yet."
+      "hood_readback_required": "Select four distinct relays of one M3000-BB-1020 from the loaded Modbus Devices 1.9.0 integration. Other drivers are not supported yet.",
+      "doorbell_url": "Enter an HTTP(S) URL ending in .mp3.",
+      "doorbell_payload": "Enter the press payload.",
+      "doorbell_interval": "Check times, weekdays, speakers and overlapping intervals."
     }
   },
   "options": {
@@ -192,6 +241,50 @@
           "break_delay": "All-off break (seconds)",
           "input_settle": "Panel input settling time (seconds)"
         }
+      },
+      "doorbell": {
+        "title": "Doorbell",
+        "description": "Starts disabled. The native Ring button obeys the schedule. Fill only fields for your selected source. Volume is restored after the configured duration; music is not resumed.",
+        "data": {
+          "speakers": "Daytime speakers",
+          "media_url": "MP3 HTTP URL",
+          "volume": "Daytime volume (0–1)",
+          "sound_duration": "Sound duration before restoring volume (seconds)",
+          "cooldown": "Cooldown (seconds)",
+          "source": "Input source",
+          "active_state": "Active sensor state",
+          "mqtt_topic": "MQTT topic",
+          "mqtt_payload": "MQTT press value",
+          "mqtt_key": "JSON field path (e.g. Button1.Action); empty for plain payload",
+          "source_entity": "Source entity"
+        }
+      },
+      "doorbell_schedule": {
+        "title": "Quiet intervals",
+        "description": "{intervals}",
+        "menu_options": {
+          "doorbell_night": "Add interval",
+          "doorbell_remove": "Remove interval",
+          "doorbell_finish": "Save"
+        }
+      },
+      "doorbell_night": {
+        "title": "Quiet interval",
+        "description": "Use whole minutes. Weekdays refer to the start date. To edit, remove the old interval and add a new one. Overlaps are rejected.",
+        "data": {
+          "start": "Start",
+          "end": "End",
+          "days": "Start weekdays",
+          "mode": "Mode",
+          "volume": "Volume (0–1)",
+          "speakers": "Speakers (sound mode)"
+        }
+      },
+      "doorbell_remove": {
+        "title": "Remove interval",
+        "data": {
+          "interval": "Interval"
+        }
       }
     },
     "error": {
@@ -210,7 +303,10 @@
       "output_is_input": "The controlled output cannot also be its own input.",
       "invalid_parameters": "Check window size, trend thresholds and maximum report age.",
       "hood_inputs_complete": "Select all four panel inputs or leave all empty.",
-      "hood_readback_required": "Select four distinct relays of one M3000-BB-1020 from the loaded Modbus Devices 1.9.0 integration. Other drivers are not supported yet."
+      "hood_readback_required": "Select four distinct relays of one M3000-BB-1020 from the loaded Modbus Devices 1.9.0 integration. Other drivers are not supported yet.",
+      "doorbell_url": "Enter an HTTP(S) URL ending in .mp3.",
+      "doorbell_payload": "Enter the press payload.",
+      "doorbell_interval": "Check times, weekdays, speakers and overlapping intervals."
     }
   },
   "entity": {
@@ -222,6 +318,9 @@
     "button": {
       "press": {
         "name": "Button press"
+      },
+      "ring": {
+        "name": "Ring"
       }
     }
   },
@@ -230,6 +329,31 @@
       "options": {
         "chandelier": "Chandelier",
         "kitchen": "Kitchen"
+      }
+    },
+    "doorbell_source": {
+      "options": {
+        "virtual": "Native button only",
+        "binary_sensor": "Binary sensor",
+        "input_button": "input_button",
+        "mqtt": "MQTT"
+      }
+    },
+    "doorbell_night_mode": {
+      "options": {
+        "silent": "Silent",
+        "sound": "Sound"
+      }
+    },
+    "doorbell_days": {
+      "options": {
+        "0": "Mon",
+        "1": "Tue",
+        "2": "Wed",
+        "3": "Thu",
+        "4": "Fri",
+        "5": "Sat",
+        "6": "Sun"
       }
     }
   }

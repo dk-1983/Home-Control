@@ -9,6 +9,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import DEFAULT_FEEDBACK_TIMEOUT, DEFAULT_WINDOW, DOMAIN, GROUP_KEYS, selected_groups
+from .doorbell_config import DoorbellFlowMixin
 from .hood_config import hood_schema, validate_hood
 from .process_config import PROCESS_TYPES, owned_outputs, process_schema, validate_process
 
@@ -118,7 +119,7 @@ def _validate(hass, values, *, exclude_id=None):
     return data, errors
 
 
-class HomeControlConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class HomeControlConfigFlow(DoorbellFlowMixin, config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     @staticmethod
@@ -130,7 +131,8 @@ class HomeControlConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             return await self.async_step_lighting(user_input)
         return self.async_show_menu(
-            step_id="user", menu_options=["lighting", "motion", "shared_fan", "humidity", "hood"]
+            step_id="user",
+            menu_options=["lighting", "motion", "shared_fan", "humidity", "hood", "doorbell"],
         )
 
     async def async_step_motion(self, user_input=None):
@@ -192,10 +194,12 @@ class HomeControlConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
 
-class HomeControlOptionsFlow(config_entries.OptionsFlow):
+class HomeControlOptionsFlow(DoorbellFlowMixin, config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         current = dict(self.config_entry.data) | dict(self.config_entry.options)
         kind = current.get("process_type")
+        if kind == "doorbell":
+            return await self.async_step_doorbell(user_input)
         if kind == "hood":
             return await self.async_step_hood(user_input)
         if kind in PROCESS_TYPES:

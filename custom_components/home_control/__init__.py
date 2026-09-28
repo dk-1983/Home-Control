@@ -8,6 +8,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN
+from .doorbell import DoorbellRuntime
 from .hood import HoodRuntime
 from .process_config import PROCESS_TYPES
 from .process_runtime import ProcessRuntime
@@ -19,10 +20,15 @@ PLATFORMS = [Platform.SWITCH, Platform.BUTTON, Platform.FAN, Platform.LIGHT]
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     environmental = (dict(entry.data) | dict(entry.options)).get("process_type") in PROCESS_TYPES
     hood = (dict(entry.data) | dict(entry.options)).get("process_type") == "hood"
-    if not environmental and not hood and not await mqtt.async_wait_for_mqtt_client(hass):
+    config = dict(entry.data) | dict(entry.options)
+    doorbell = config.get("process_type") == "doorbell"
+    needs_mqtt = config.get("source") == "mqtt" if doorbell else not environmental and not hood
+    if needs_mqtt and not await mqtt.async_wait_for_mqtt_client(hass):
         raise ConfigEntryNotReady("Configure MQTT before Home Control")
     runtime = (
-        HoodRuntime(hass, entry)
+        DoorbellRuntime(hass, entry)
+        if doorbell
+        else HoodRuntime(hass, entry)
         if hood
         else ProcessRuntime(hass, entry)
         if environmental
