@@ -9,6 +9,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import DEFAULT_FEEDBACK_TIMEOUT, DEFAULT_WINDOW, DOMAIN, GROUP_KEYS, selected_groups
+from .process_config import PROCESS_TYPES, owned_outputs, process_schema, validate_process
 
 
 def _schema(values):
@@ -86,20 +87,29 @@ def _validate(hass, values, *, exclude_id=None):
     if data["night_light"] in groups:
         errors["night_light"] = "night_light_in_use"
     if (night_state := hass.states.get(data["night_light"])) is not None:
-        if night_state.attributes.get("process_type") in ("local_chandelier", "local_kitchen"):
+        if night_state.attributes.get("process_type") in (
+            "local_chandelier",
+            "local_kitchen",
+            "local_motion",
+            "local_shared_fan",
+            "local_humidity",
+        ):
             errors["night_light"] = "automation_not_light"
     for entry in hass.config_entries.async_entries(DOMAIN):
         if entry.entry_id == exclude_id:
             continue
         other = dict(entry.data) | dict(entry.options)
-        other_groups = set(selected_groups(other))
+        other_groups = owned_outputs(other)
         if data["night_light"] and (
             data["night_light"] == other.get("night_light") or data["night_light"] in other_groups
         ):
             errors["night_light"] = "night_light_in_use"
         if groups.intersection(other_groups) or other.get("night_light") in groups:
             errors["base"] = "groups_in_use"
-        if (data["mqtt_topic"], data["mqtt_button"]) == (other["mqtt_topic"], other["mqtt_button"]):
+        if (data["mqtt_topic"], data["mqtt_button"]) == (
+            other.get("mqtt_topic"),
+            other.get("mqtt_button"),
+        ):
             errors["mqtt_topic"] = "source_in_use"
         if data["input_button"] and data["input_button"] == other.get("input_button"):
             errors["input_button"] = "source_in_use"
@@ -115,6 +125,37 @@ class HomeControlConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return HomeControlOptionsFlow()
 
     async def async_step_user(self, user_input=None):
+        if user_input is not None:
+            return await self.async_step_lighting(user_input)
+        return self.async_show_menu(
+            step_id="user", menu_options=["lighting", "motion", "shared_fan", "humidity"]
+        )
+
+    async def async_step_motion(self, user_input=None):
+        return await self._environment_step("motion", user_input)
+
+    async def async_step_shared_fan(self, user_input=None):
+        return await self._environment_step("shared_fan", user_input)
+
+    async def async_step_humidity(self, user_input=None):
+        return await self._environment_step("humidity", user_input)
+
+    async def _environment_step(self, kind, user_input):
+        errors = {}
+        if user_input is not None:
+            data, errors = validate_process(self.hass, kind, user_input)
+            name = data.pop("name", "").strip()
+            if not name:
+                errors["name"] = "invalid_name"
+            if not errors:
+                return self.async_create_entry(title=name, data=data)
+        return self.async_show_form(
+            step_id=kind,
+            data_schema=process_schema(kind, user_input or {}, name=True),
+            errors=errors,
+        )
+
+    async def async_step_lighting(self, user_input=None):
         errors = {}
         if user_input is not None:
             data, errors = _validate(self.hass, user_input)
@@ -125,7 +166,7 @@ class HomeControlConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_create_entry(title=name, data=data)
         values = user_input or {}
         return self.async_show_form(
-            step_id="user",
+            step_id="lighting",
             data_schema=vol.Schema(
                 {
                     vol.Required("name", default=values.get("name", "Hall chandelier")): str,
@@ -138,6 +179,10 @@ class HomeControlConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class HomeControlOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
+        current = dict(self.config_entry.data) | dict(self.config_entry.options)
+        kind = current.get("process_type")
+        if kind in PROCESS_TYPES:
+            return await self._environment_options(kind, current, user_input)
         errors = {}
         if user_input is not None:
             data, errors = _validate(self.hass, user_input, exclude_id=self.config_entry.entry_id)
@@ -151,3 +196,26 @@ class HomeControlOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="init", data_schema=vol.Schema(_schema(values)), errors=errors
         )
+
+    async def _environment_options(self, kind, current, user_input):
+        errors = {}
+        if user_input is not None:
+            data, errors = validate_process(
+                self.hass, kind, user_input, exclude_id=self.config_entry.entry_id
+            )
+            if not errors:
+                return self.async_create_entry(title="", data=data)
+        return self.async_show_form(
+            step_id=kind,
+            data_schema=process_schema(kind, current if user_input is None else user_input),
+            errors=errors,
+        )
+
+    async def async_step_motion(self, user_input=None):
+        return await self.async_step_init(user_input)
+
+    async def async_step_shared_fan(self, user_input=None):
+        return await self.async_step_init(user_input)
+
+    async def async_step_humidity(self, user_input=None):
+        return await self.async_step_init(user_input)

@@ -185,7 +185,7 @@ class HomeAssistantRuntimeTests(unittest.IsolatedAsyncioTestCase):
             states=self.hass.states, config_entries=SimpleNamespace(async_entries=lambda domain: [])
         )
         form = await flow.async_step_user()
-        self.assertEqual(form["type"], "form")
+        self.assertEqual(form["type"], "menu")
         result = await flow.async_step_user(self.config | {"name": "Hall"})
         self.assertEqual(result["type"], "create_entry")
         self.assertEqual(result["title"], "Hall")
@@ -240,7 +240,10 @@ class HomeAssistantRuntimeTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(entry.state, ConfigEntryState.LOADED)
             entities = self.hass.states.async_all()
             self.assertTrue(any(s.entity_id.startswith("switch.lifecycle_") for s in entities))
-            self.assertTrue(any(s.entity_id.startswith("button.lifecycle_") for s in entities))
+            self.assertEqual(
+                any(s.entity_id.startswith("button.lifecycle_") for s in entities),
+                self.config.get("process_type") not in ("motion", "shared_fan", "humidity"),
+            )
             loaded_runtime = entry.runtime_data
             self.assertTrue(await self.hass.config_entries.async_unload(entry.entry_id))
             self.assertFalse(loaded_runtime.controller.enabled)

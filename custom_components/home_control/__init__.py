@@ -8,15 +8,18 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN
+from .process_config import PROCESS_TYPES
+from .process_runtime import ProcessRuntime
 from .runtime import HomeControlRuntime
 
 PLATFORMS = [Platform.SWITCH, Platform.BUTTON]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    if not await mqtt.async_wait_for_mqtt_client(hass):
+    environmental = (dict(entry.data) | dict(entry.options)).get("process_type") in PROCESS_TYPES
+    if not environmental and not await mqtt.async_wait_for_mqtt_client(hass):
         raise ConfigEntryNotReady("Configure MQTT before Home Control")
-    runtime = HomeControlRuntime(hass, entry)
+    runtime = ProcessRuntime(hass, entry) if environmental else HomeControlRuntime(hass, entry)
     entry.runtime_data = runtime
     try:
         await runtime.async_start()

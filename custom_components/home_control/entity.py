@@ -17,7 +17,7 @@ class HomeControlEntity(Entity):
             identifiers={(DOMAIN, runtime.entry.entry_id)},
             name=runtime.entry.title,
             manufacturer="Home Control",
-            model="Local lighting controller",
+            model="Local automation controller",
             entry_type=DeviceEntryType.SERVICE,
         )
 

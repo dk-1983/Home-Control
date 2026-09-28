@@ -2,7 +2,7 @@
   "title": "Home Control",
   "config": {
     "step": {
-      "user": {
+      "lighting": {
         "title": "Local lighting control",
         "description": "Chandelier: 1–4 groups in turn-off order. Kitchen: all 4 groups, cycle 0000 → 1000 → 1100 → 1110 → 0010 → 0001 → 0000. Every press refreshes the selection window. New processes start disabled; saving options resets selection without switching lights.",
         "data": {
@@ -19,6 +19,61 @@
           "night_light": "Night light (light or switch) — toggle with HOLD",
           "mode": "Lighting algorithm"
         }
+      },
+      "user": {
+        "title": "Choose a process",
+        "menu_options": {
+          "lighting": "Button lighting",
+          "motion": "Motion lighting",
+          "shared_fan": "Shared extraction",
+          "humidity": "Humidity ventilation"
+        }
+      },
+      "motion": {
+        "title": "Motion lighting",
+        "description": "Any active motion sensor turns the light on. All sensors must remain off for the off delay. Unavailable sensors do not prove absence.",
+        "data": {
+          "name": "Process name",
+          "motion_sensors": "Motion sensors",
+          "output": "Controlled entity",
+          "light_off_delay": "Light off delay without motion (seconds)",
+          "feedback_timeout": "Command feedback timeout (seconds)"
+        }
+      },
+      "shared_fan": {
+        "title": "Shared extraction",
+        "description": "Room lights request delayed extraction. Any selected fan requests immediate extraction. Run-on starts when all inputs are off. Only this process commands the shared output.",
+        "data": {
+          "name": "Process name",
+          "lights": "Room lights",
+          "boost_fans": "Fans requiring immediate shared extraction",
+          "output": "Controlled entity",
+          "fan_on_delay": "Light-based fan start delay (seconds)",
+          "fan_off_delay": "Shared fan run-on (seconds)",
+          "feedback_timeout": "Command feedback timeout (seconds)"
+        }
+      },
+      "humidity": {
+        "title": "Humidity ventilation",
+        "description": "Rising humidity with the room light on starts the bathroom fan. Sustained falling humidity keeps it running. A confirmed plateau ends the cycle even with the light on. The fallback does not limit useful drying. Configure shared extraction as a separate process.",
+        "data": {
+          "name": "Process name",
+          "room_light": "Bathroom light",
+          "humidity_sensor": "Humidity sensor",
+          "output": "Controlled entity",
+          "sample_interval": "Humidity analysis interval (seconds)",
+          "window_size": "Measurement window size",
+          "minimum_samples": "Minimum measurements for trend",
+          "rising_slope": "Rising threshold (RH percentage points per minute)",
+          "falling_slope": "Falling threshold (negative RH percentage points per minute)",
+          "stable_slope": "Plateau slope tolerance (RH percentage points per minute)",
+          "stable_range": "Plateau range tolerance (RH percentage points)",
+          "stable_windows_required": "Consecutive stable windows",
+          "plateau_duration": "Plateau confirmation (seconds)",
+          "uncertain_timeout_minutes": "Fallback wait without a clear trend (minutes)",
+          "sensor_max_age": "Maximum sensor report age (seconds)",
+          "feedback_timeout": "Command feedback timeout (seconds)"
+        }
       }
     },
     "error": {
@@ -33,7 +88,9 @@
       "automation_not_light": "Choose a lamp or relay, not a Home Control automation switch.",
       "group_required": "Select at least the first lighting group.",
       "kitchen_requires_four": "Kitchen mode requires all four lighting groups.",
-      "invalid_mode": "Choose a lighting algorithm."
+      "invalid_mode": "Choose a lighting algorithm.",
+      "output_is_input": "The controlled output cannot also be its own input.",
+      "invalid_parameters": "Check window size, trend thresholds and maximum report age."
     }
   },
   "options": {
@@ -54,6 +111,49 @@
           "night_light": "Night light (light or switch) — toggle with HOLD",
           "mode": "Lighting algorithm"
         }
+      },
+      "motion": {
+        "title": "Motion lighting",
+        "description": "Any active motion sensor turns the light on. All sensors must remain off for the off delay. Unavailable sensors do not prove absence.",
+        "data": {
+          "motion_sensors": "Motion sensors",
+          "output": "Controlled entity",
+          "light_off_delay": "Light off delay without motion (seconds)",
+          "feedback_timeout": "Command feedback timeout (seconds)"
+        }
+      },
+      "shared_fan": {
+        "title": "Shared extraction",
+        "description": "Room lights request delayed extraction. Any selected fan requests immediate extraction. Run-on starts when all inputs are off. Only this process commands the shared output.",
+        "data": {
+          "lights": "Room lights",
+          "boost_fans": "Fans requiring immediate shared extraction",
+          "output": "Controlled entity",
+          "fan_on_delay": "Light-based fan start delay (seconds)",
+          "fan_off_delay": "Shared fan run-on (seconds)",
+          "feedback_timeout": "Command feedback timeout (seconds)"
+        }
+      },
+      "humidity": {
+        "title": "Humidity ventilation",
+        "description": "Rising humidity with the room light on starts the bathroom fan. Sustained falling humidity keeps it running. A confirmed plateau ends the cycle even with the light on. The fallback does not limit useful drying. Configure shared extraction as a separate process.",
+        "data": {
+          "room_light": "Bathroom light",
+          "humidity_sensor": "Humidity sensor",
+          "output": "Controlled entity",
+          "sample_interval": "Humidity analysis interval (seconds)",
+          "window_size": "Measurement window size",
+          "minimum_samples": "Minimum measurements for trend",
+          "rising_slope": "Rising threshold (RH percentage points per minute)",
+          "falling_slope": "Falling threshold (negative RH percentage points per minute)",
+          "stable_slope": "Plateau slope tolerance (RH percentage points per minute)",
+          "stable_range": "Plateau range tolerance (RH percentage points)",
+          "stable_windows_required": "Consecutive stable windows",
+          "plateau_duration": "Plateau confirmation (seconds)",
+          "uncertain_timeout_minutes": "Fallback wait without a clear trend (minutes)",
+          "sensor_max_age": "Maximum sensor report age (seconds)",
+          "feedback_timeout": "Command feedback timeout (seconds)"
+        }
       }
     },
     "error": {
@@ -68,7 +168,9 @@
       "automation_not_light": "Choose a lamp or relay, not a Home Control automation switch.",
       "group_required": "Select at least the first lighting group.",
       "kitchen_requires_four": "Kitchen mode requires all four lighting groups.",
-      "invalid_mode": "Choose a lighting algorithm."
+      "invalid_mode": "Choose a lighting algorithm.",
+      "output_is_input": "The controlled output cannot also be its own input.",
+      "invalid_parameters": "Check window size, trend thresholds and maximum report age."
     }
   },
   "entity": {

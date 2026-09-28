@@ -6,7 +6,8 @@ from .entity import HomeControlEntity
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
-    async_add_entities([ChandelierButton(entry.runtime_data)])
+    if hasattr(entry.runtime_data, "async_press"):
+        async_add_entities([ChandelierButton(entry.runtime_data)])
 
 
 class ChandelierButton(HomeControlEntity, ButtonEntity):
