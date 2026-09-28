@@ -4,6 +4,7 @@ import voluptuous as vol
 from homeassistant.helpers import selector
 
 from .hood import DEFAULTS, INPUT_KEYS, OUTPUT_KEYS
+from .hood_readback import ReadbackError, resolve_binding
 from .process_config import owned_outputs
 
 
@@ -50,8 +51,12 @@ def validate_hood(hass, values, *, exclude_id=None):
             errors[key] = "missing_entity"
         elif str(state.attributes.get("process_type", "")).startswith("local_"):
             errors[key] = "automation_not_light"
-        elif key in OUTPUT_KEYS and "modbus_readback_at" not in state.attributes:
-            errors[key] = "hood_readback_required"
+
+    if not errors:
+        try:
+            resolve_binding(hass, outputs)
+        except ReadbackError:
+            errors["base"] = "hood_readback_required"
     for entry in hass.config_entries.async_entries("home_control"):
         if entry.entry_id == exclude_id:
             continue

@@ -78,7 +78,7 @@
       },
       "hood": {
         "title": "Kitchen hood",
-        "description": "Four relays with Modbus Devices readback. Configure all four panel inputs or none. Saved speed is used only on a turn-on request. New processes start disabled; lighting is configured separately.",
+        "description": "Four relays of one M3000-BB-1020 via Modbus Devices 1.9.0. Home Control requests a device read before switching. Configure all four panel inputs or none. Saved speed is used only on turn-on. New processes start disabled.",
         "data": {
           "name": "Process name",
           "speed_25": "Speed 25% relay",
@@ -111,7 +111,7 @@
       "output_is_input": "The controlled output cannot also be its own input.",
       "invalid_parameters": "Check window size, trend thresholds and maximum report age.",
       "hood_inputs_complete": "Select all four panel inputs or leave all empty.",
-      "hood_readback_required": "A Modbus Devices relay with readback attributes is required. Update Modbus Devices."
+      "hood_readback_required": "Select four distinct relays of one M3000-BB-1020 from the loaded Modbus Devices 1.9.0 integration. Other drivers are not supported yet."
     }
   },
   "options": {
@@ -178,7 +178,7 @@
       },
       "hood": {
         "title": "Kitchen hood",
-        "description": "Four relays with Modbus Devices readback. Configure all four panel inputs or none. Saved speed is used only on a turn-on request. New processes start disabled; lighting is configured separately.",
+        "description": "Four relays of one M3000-BB-1020 via Modbus Devices 1.9.0. Home Control requests a device read before switching. Configure all four panel inputs or none. Saved speed is used only on turn-on. New processes start disabled.",
         "data": {
           "speed_25": "Speed 25% relay",
           "input_25": "Panel input 25% (optional)",
@@ -210,7 +210,7 @@
       "output_is_input": "The controlled output cannot also be its own input.",
       "invalid_parameters": "Check window size, trend thresholds and maximum report age.",
       "hood_inputs_complete": "Select all four panel inputs or leave all empty.",
-      "hood_readback_required": "A Modbus Devices relay with readback attributes is required. Update Modbus Devices."
+      "hood_readback_required": "Select four distinct relays of one M3000-BB-1020 from the loaded Modbus Devices 1.9.0 integration. Other drivers are not supported yet."
     }
   },
   "entity": {

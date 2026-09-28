@@ -15,11 +15,9 @@ HAS_HA = importlib.util.find_spec("homeassistant") is not None
 class HoodTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         from homeassistant.core import HomeAssistant
-        from homeassistant.util import dt as dt_util
 
         from custom_components.home_control.hood import INPUT_KEYS, OUTPUT_KEYS
 
-        self.dt = dt_util
         self.temp = TemporaryDirectory(dir=Path(__file__).parents[1] / "work", prefix="ha-hood-")
         self.hass = HomeAssistant(self.temp.name)
         self.outputs = [f"switch.speed_{i}" for i in range(4)]
@@ -40,6 +38,14 @@ class HoodTests(unittest.IsolatedAsyncioTestCase):
         self.polling = True
         self.ack_writes = True
         self.overlap = False
+        from homeassistant.helpers.entity_component import DATA_INSTANCES
+        from hood_fakes import FakeCoordinator, FakeRelay
+
+        self.coordinator = FakeCoordinator(self.hass, self)
+        self.entities = {
+            entity: FakeRelay(self.coordinator, i + 1) for i, entity in enumerate(self.outputs)
+        }
+        self.hass.data[DATA_INSTANCES] = {"switch": SimpleNamespace(get_entity=self.entities.get)}
         self._poll_task = asyncio.create_task(self.poll_loop())
         self.publish()
         for entity in self.inputs:
@@ -53,23 +59,16 @@ class HoodTests(unittest.IsolatedAsyncioTestCase):
                 self.hardware[self.outputs.index(entity)] = on
                 self.overlap |= sum(self.hardware) > 1
             # Successful service return only updates the optimistic state.
+            self.coordinator._write_generation += 1
             old = self.hass.states.get(entity)
             self.hass.states.async_set(entity, "on" if on else "off", dict(old.attributes))
 
         for name in ("turn_on", "turn_off"):
             self.hass.services.async_register("switch", name, service)
 
-    def publish(self, stamp=None):
-        stamp = self.dt.utcnow().timestamp() if stamp is None else stamp
+    def publish(self):
         for entity, value in zip(self.outputs, self.hardware):
-            self.hass.states.async_set(
-                entity,
-                "on" if value else "off",
-                {
-                    "modbus_readback_state": value,
-                    "modbus_readback_at": stamp,
-                },
-            )
+            self.hass.states.async_set(entity, "on" if value else "off")
 
     async def poll_loop(self):
         while True:
@@ -154,13 +153,14 @@ class HoodTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(runtime.last_speed, 25)
         self.assertTrue(runtime.attributes["commands_blocked"])
 
-    async def test_poll_started_before_command_is_not_confirmation(self):
+    async def test_cached_ha_update_cannot_replace_requested_poll(self):
         runtime = await self.enabled()
         self.polling = False
-        stamp = self.dt.utcnow().timestamp()
+        cached = tuple(self.hardware)
         request = asyncio.create_task(runtime.async_request(100))
         await asyncio.sleep(0.01)
-        self.publish(stamp)
+        self.publish()
+        self.assertEqual(cached, (False,) * 4)
         with self.assertRaises(Exception):
             await request
         self.assertFalse(any(on for on, _ in self.commands))
@@ -269,16 +269,18 @@ class HoodTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(owned_outputs(self.config), set(self.outputs))
         fake = SimpleNamespace(
-            states=self.hass.states, config_entries=SimpleNamespace(async_entries=lambda _: [])
+            states=self.hass.states,
+            data=self.hass.data,
+            config_entries=SimpleNamespace(async_entries=lambda _: []),
         )
         with patch.object(fake.config_entries, "async_entries", return_value=[]):
             _, errors = validate_hood(fake, self.config)
             self.assertEqual(errors, {})
             _, errors = validate_hood(fake, self.config | {"input_25": ""})
             self.assertEqual(errors["base"], "hood_inputs_complete")
-            self.hass.states.async_set(self.outputs[0], "off")
+            self.entities.pop(self.outputs[0])
             _, errors = validate_hood(fake, self.config)
-            self.assertEqual(errors["speed_25"], "hood_readback_required")
+            self.assertEqual(errors["base"], "hood_readback_required")
 
     async def test_fan_entity_routes_resume_stop_and_percentages(self):
         from custom_components.home_control.fan import HoodFan
@@ -308,7 +310,9 @@ class HoodTests(unittest.IsolatedAsyncioTestCase):
 
         flow = HomeControlConfigFlow()
         flow.hass = SimpleNamespace(
-            states=self.hass.states, config_entries=SimpleNamespace(async_entries=lambda _: [])
+            states=self.hass.states,
+            data=self.hass.data,
+            config_entries=SimpleNamespace(async_entries=lambda _: []),
         )
         form = await flow.async_step_hood()
         self.assertEqual(form["type"], "form")
@@ -371,3 +375,23 @@ class HoodTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(any(self.hardware))
         self.assertTrue(runtime.attributes["commands_blocked"])
         self.assertFalse(any(on for on, _ in self.commands))
+
+    async def test_concurrent_lighting_write_requires_another_poll(self):
+        runtime = await self.enabled()
+        original = self.coordinator._async_update_data
+        raced = False
+
+        async def update():
+            nonlocal raced
+            data = await original()
+            if not raced:
+                raced = True
+                self.coordinator._write_generation += 1
+            return data
+
+        self.coordinator._async_update_data = update
+        await runtime.async_request(75)
+        self.assertTrue(raced)
+        self.assertFalse(runtime.attributes["commands_blocked"])
+        self.assertEqual(runtime.last_speed, 75)
+        self.assertFalse(self.overlap)

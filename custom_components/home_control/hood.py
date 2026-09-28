@@ -8,9 +8,9 @@ from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.storage import Store
-from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, SERVICE_TIMEOUT
+from .hood_readback import HoodReadback, ReadbackError
 
 _LOGGER = logging.getLogger(__name__)
 SPEEDS = (25, 50, 75, 100)
@@ -36,6 +36,7 @@ class HoodRuntime:
         self.config = DEFAULTS | dict(entry.data) | dict(entry.options)
         self.outputs = [self.config[key] for key in OUTPUT_KEYS]
         self.inputs = [self.config[key] for key in INPUT_KEYS if self.config.get(key)]
+        self.readback = HoodReadback(hass, self.outputs)
         self.controller = self
         self.listeners = set()
         self.store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}", atomic_writes=True)
@@ -48,6 +49,7 @@ class HoodRuntime:
         self._generation = 0
         self._target = None
         self._worker = None
+        self._binding = None
         self._wake = asyncio.Event()
         self._toggle_lock = asyncio.Lock()
         self._store_lock = asyncio.Lock()
@@ -63,30 +65,16 @@ class HoodRuntime:
             for entity in self.outputs
         ]
 
-    def _feedback(self, after=0):
-        """Only fresh device reads qualify; HA's optimistic state is ignored."""
-        now = dt_util.utcnow().timestamp()
-        values = []
-        for entity in self.outputs:
-            state = self.hass.states.get(entity)
-            if state is None or state.state not in ("on", "off"):
-                return None
-            value = state.attributes.get("modbus_readback_state")
-            stamp = state.attributes.get("modbus_readback_at")
-            if (
-                type(value) is not bool
-                or not isinstance(stamp, (int, float))
-                or not math.isfinite(stamp)
-                or stamp < after
-                or not 0 <= now - stamp <= max(30, self.config["feedback_timeout"] * 2)
-            ):
-                return None
-            values.append(value)
-        return tuple(values)
+    def _reported(self):
+        """HA states are for display and conservative fault detection only."""
+        states = self._states()
+        if any(state not in ("on", "off") for state in states):
+            return None
+        return tuple(state == "on" for state in states)
 
     @property
     def percentage(self):
-        values = self._feedback()
+        values = self._reported()
         if values is None or sum(values) > 1:
             return None
         return SPEEDS[values.index(True)] if any(values) else 0
@@ -125,7 +113,7 @@ class HoodRuntime:
         self._wake.set()
         self._changed()
         if event.data["entity_id"] not in self.inputs:
-            values = self._feedback()
+            values = self._reported()
             if (
                 self.enabled
                 and not self._stopped
@@ -226,9 +214,18 @@ class HoodRuntime:
         return self.enabled and not self._stopped and generation == self._generation
 
     def _submit(self, target):
+        try:
+            binding = self.readback.resolve()
+        except ReadbackError as exc:
+            self._target = None
+            self.last_error = str(exc)
+            self._failed = True
+            self._changed()
+            return
         self._target = target
         self._wake.set()
         if self._worker is None or self._worker.done():
+            self._binding = binding
             self._worker = self.hass.async_create_task(self._run(self._generation))
         self._changed()
 
@@ -249,28 +246,76 @@ class HoodRuntime:
     async def _command(self, entity, on, generation):
         if not self._active(generation):
             return False
+        self._check_binding()
         async with asyncio.timeout(SERVICE_TIMEOUT):
             await self.hass.services.async_call(
                 "switch", "turn_on" if on else "turn_off", {"entity_id": entity}, blocking=True
             )
         return self._active(generation)
 
-    async def _wait(self, expected, after, generation, *, target=None):
+    def _check_binding(self):
+        if self.readback.resolve() != self._binding:
+            raise HoodFault("readback_binding_changed")
+
+    async def _read(self, generation):
+        if not self._active(generation):
+            return None
+        try:
+            self._check_binding()
+            async with asyncio.timeout(self.config["feedback_timeout"]):
+                while self._active(generation):
+                    try:
+                        values = await self.readback.async_read()
+                        break
+                    except ReadbackError as exc:
+                        if str(exc) not in ("readback_concurrent_write", "readback_pending_write"):
+                            raise
+                        # Lighting on the same controller may write during a poll.
+                        # Discard that snapshot and request another within the deadline.
+                        await asyncio.sleep(0.05)
+                else:
+                    return None
+            self._check_binding()
+        except TimeoutError as exc:
+            if not self._active(generation):
+                return None
+            raise HoodFault("feedback_timeout") from exc
+        except Exception as exc:
+            if not self._active(generation):
+                return None
+            if isinstance(exc, (ReadbackError, HoodFault)):
+                raise HoodFault(str(exc)) from exc
+            raise HoodFault("readback_failed") from exc
+        if not self._active(generation):
+            return None
+        return values
+
+    async def _wait(self, expected, generation, *, target=None):
         deadline = self.hass.loop.time() + self.config["feedback_timeout"]
         while self._active(generation):
-            self._wake.clear()
             if target is not None and self._target != target:
                 return False
-            values = self._feedback(after)
-            if values == expected:
-                return True
-            if values is not None and sum(values) > 1:
-                raise HoodFault("multiple_active_outputs")
             remaining = deadline - self.hass.loop.time()
             if remaining <= 0:
                 raise HoodFault("feedback_timeout")
             try:
-                await asyncio.wait_for(self._wake.wait(), min(remaining, 0.2))
+                async with asyncio.timeout(remaining):
+                    values = await self._read(generation)
+            except TimeoutError as exc:
+                if not self._active(generation):
+                    return False
+                raise HoodFault("feedback_timeout") from exc
+            if values is None or (target is not None and self._target != target):
+                return False
+            if values == expected:
+                return True
+            if sum(values) > 1:
+                raise HoodFault("multiple_active_outputs")
+            self._wake.clear()
+            try:
+                await asyncio.wait_for(
+                    self._wake.wait(), min(max(0, deadline - self.hass.loop.time()), 0.2)
+                )
             except TimeoutError:
                 pass
         return False
@@ -281,17 +326,23 @@ class HoodRuntime:
         for entity in self.outputs:
             if not await self._command(entity, False, generation):
                 return False
-        # Poll must start AFTER all off writes completed, not during an earlier write.
-        return await self._wait((False,) * 4, dt_util.utcnow().timestamp(), generation)
+        # A new physical read is requested only AFTER all off services complete.
+        return await self._wait((False,) * 4, generation)
 
     async def _break(self, generation):
         self.phase = "break"
         self._changed()
         deadline = self.hass.loop.time() + self.config["break_delay"]
         while self._active(generation):
-            if self._feedback() != (False,) * 4:
+            if self._reported() != (False,) * 4:
                 raise HoodFault("off_state_lost")
             if self.hass.loop.time() >= deadline:
+                # The pause is not proof. Read again immediately before allowing ON.
+                values = await self._read(generation)
+                if values is None:
+                    return False
+                if values != (False,) * 4:
+                    raise HoodFault("off_state_lost")
                 return True
             self._wake.clear()
             try:
@@ -314,7 +365,14 @@ class HoodRuntime:
         try:
             while self._active(generation) and self._target is not None:
                 target = self._target
-                if target != 0 and self.percentage == target:
+                if target != 0:
+                    values = await self._read(generation)
+                    if values is None:
+                        return
+                    # A newer request received during the read supersedes this one.
+                    if self._target != target:
+                        continue
+                if target != 0 and values == tuple(speed == target for speed in SPEEDS):
                     await self._remember(target)
                     if self._target == target:
                         self._target = None
@@ -338,9 +396,7 @@ class HoodRuntime:
                 if not await self._command(self.outputs[SPEEDS.index(target)], True, generation):
                     return
                 expected = tuple(speed == target for speed in SPEEDS)
-                if await self._wait(
-                    expected, dt_util.utcnow().timestamp(), generation, target=target
-                ):
+                if await self._wait(expected, generation, target=target):
                     await self._remember(target)
                     if self._target == target:
                         self._target = None
