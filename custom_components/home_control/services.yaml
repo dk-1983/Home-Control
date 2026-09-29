@@ -30,3 +30,110 @@ announce:
       default: false
       selector:
         boolean:
+
+register_voice_source:
+  fields:
+    protocol_version:
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+          step: 1
+    source:
+      required: true
+      selector:
+        object:
+    producer_session:
+      required: true
+      selector:
+        text:
+    revision:
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+          step: 1
+    name:
+      required: true
+      selector:
+        text:
+    area_id:
+      required: true
+      selector:
+        text:
+    preferences:
+      required: true
+      selector:
+        object:
+    maintenance:
+      required: true
+      selector:
+        boolean:
+    active_issues:
+      required: true
+      selector:
+        object:
+
+publish_voice_event:
+  fields:
+    protocol_version:
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+          step: 1
+    source:
+      required: true
+      selector:
+        object:
+    producer_session:
+      required: true
+      selector:
+        text:
+    revision:
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+          step: 1
+    center_session:
+      required: true
+      selector:
+        text:
+    event:
+      required: true
+      selector:
+        object:
+
+unregister_voice_source:
+  fields:
+    protocol_version:
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+          step: 1
+    source:
+      required: true
+      selector:
+        object:
+    producer_session:
+      required: true
+      selector:
+        text:
+    revision:
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+          step: 1
+    center_session:
+      required: true
+      selector:
+        text:

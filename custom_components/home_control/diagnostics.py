@@ -44,7 +44,8 @@ async def async_get_config_entry_diagnostics(hass, entry):
         ),
         "enabled": runtime.controller.enabled,
         "controller": async_redact_data(
-            runtime.attributes, {"active_valve", "valves", "last_source", "speaker_results"}
+            runtime.attributes,
+            {"active_valve", "valves", "last_source", "speaker_results", "external_sources"},
         ),
         "reported_states": runtime._states(),
     }

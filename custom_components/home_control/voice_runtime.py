@@ -16,6 +16,7 @@ from .const import DOMAIN, SERVICE_TIMEOUT
 from .doorbell_config import slots
 from .speaker_queue import speaker_lane
 from .voice_events import Notice, voice_bus
+from .voice_external import ExternalVoiceRegistry
 
 _LOGGER = logging.getLogger(__name__)
 PRIORITY = {"ERROR": 0, "WARNING": 1, "INFO": 2}
@@ -33,6 +34,7 @@ class VoiceRuntime:
         self._toggle_lock = asyncio.Lock()
         self.store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}", atomic_writes=True)
         self.bus = voice_bus(hass)
+        self.external = ExternalVoiceRegistry(self)
         self._tasks = {}
         self._queues = {}
         self._serial = 0
@@ -109,6 +111,7 @@ class VoiceRuntime:
                 }
             ),
         )
+        self.external.start()
         for notice in self.bus.active.values():
             self.submit(notice)
 
@@ -214,7 +217,7 @@ class VoiceRuntime:
         self.last_result = "queued" if speakers else "silent_or_no_route"
         for entity in speakers:
             queue = self._queues.setdefault(entity, [])
-            item = (PRIORITY[notice.level], self._serial, now + TTL[notice.level], notice)
+            item = (PRIORITY[notice.level], self._serial, now + TTL[notice.level], notice, repeat)
             heapq.heappush(queue, item)
             if len(queue) > 32:
                 queue.remove(max(queue, key=lambda i: (i[0], -i[1])))
@@ -244,6 +247,22 @@ class VoiceRuntime:
             if k[0] != source or (key is not None and k[1] != key)
         }
 
+    def invalidate_levels(self, source, levels):
+        keys = {
+            item[3].key
+            for queue in self._queues.values()
+            for item in queue
+            if item[3].source == source and item[3].level in levels
+        }
+        for key in keys:
+            self.invalidate(source, key)
+        self._dedup = {k: v for k, v in self._dedup.items() if k[0] != source or k[2] not in levels}
+
+    def cancel_repeats(self, source):
+        for queue in self._queues.values():
+            queue[:] = [item for item in queue if not (item[3].source == source and item[4])]
+            heapq.heapify(queue)
+
     def _finished(self, entity, task):
         if self._tasks.get(entity) is task:
             del self._tasks[entity]
@@ -261,10 +280,11 @@ class VoiceRuntime:
                 async with speaker_lane(self.hass, entity).claim(120) as lane:
                     if not self.enabled or not queue:
                         continue
-                    _, serial, expires, notice = heapq.heappop(queue)
+                    _, serial, expires, notice, repeat = heapq.heappop(queue)
                     identity = (notice.source, notice.key)
                     if (
                         not self._valid(notice)
+                        or (repeat and not self.bus.allowed(notice, repeat=True))
                         or self._latest.get(identity) != serial
                         or self.hass.loop.time() > expires
                     ):
@@ -274,7 +294,8 @@ class VoiceRuntime:
                         continue
                     # Local TTS accepts the whole phrase. Cloud delivery is
                     # excluded above because it cannot honor temporary volume.
-                    seconds = max(self.config.get("speech_gap", 10), len(notice.message) / 8)
+                    message = self.bus.message(notice)
+                    seconds = max(self.config.get("speech_gap", 10), len(message) / 8)
                     lane.reserve(seconds)
                     async with asyncio.timeout(SERVICE_TIMEOUT):
                         await self.hass.services.async_call(
@@ -282,7 +303,7 @@ class VoiceRuntime:
                             "play_media",
                             {
                                 "entity_id": entity,
-                                "media_content_id": notice.message,
+                                "media_content_id": message,
                                 "media_content_type": "text",
                                 "extra": {"volume_level": volume},
                             },
@@ -313,6 +334,7 @@ class VoiceRuntime:
 
     @callback
     def _tick(self, now):
+        self.external.expire()
         active = self.bus.active
         self._repeated = {k: v for k, v in self._repeated.items() if k in active}
         if not self.enabled:
@@ -338,6 +360,7 @@ class VoiceRuntime:
     async def async_stop(self):
         self._stopped = True
         self.set_enabled(False)
+        self.external.stop()
         for unsub in self._unsubs:
             unsub()
         self._unsubs.clear()
@@ -362,4 +385,5 @@ class VoiceRuntime:
             "speaker_results": dict(self.speaker_results),
             "queued": sum(len(q) for q in self._queues.values()),
             "active_issues": len(self.bus.active),
+            "external_sources": self.external.summaries(),
         }

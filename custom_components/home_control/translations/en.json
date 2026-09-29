@@ -633,6 +633,84 @@
           "name": "Issue resolved (same key)"
         }
       }
+    },
+    "register_voice_source": {
+      "name": "Register external voice source",
+      "description": "Public protocol v1 for integrations. Requires a service response. Normally called automatically by the producer; see voice-protocol-v1 documentation.",
+      "fields": {
+        "protocol_version": {
+          "name": "Protocol version"
+        },
+        "source": {
+          "name": "Source identity"
+        },
+        "producer_session": {
+          "name": "Producer session"
+        },
+        "revision": {
+          "name": "Revision"
+        },
+        "name": {
+          "name": "Process name"
+        },
+        "area_id": {
+          "name": "Area ID (or null in service data)"
+        },
+        "preferences": {
+          "name": "Notification preferences"
+        },
+        "maintenance": {
+          "name": "Notification maintenance"
+        },
+        "active_issues": {
+          "name": "Complete active issue snapshot"
+        }
+      }
+    },
+    "publish_voice_event": {
+      "name": "Publish external voice event",
+      "description": "Public protocol v1 for integrations. Requires a service response. Normally called automatically by the producer; see voice-protocol-v1 documentation.",
+      "fields": {
+        "protocol_version": {
+          "name": "Protocol version"
+        },
+        "source": {
+          "name": "Source identity"
+        },
+        "producer_session": {
+          "name": "Producer session"
+        },
+        "revision": {
+          "name": "Revision"
+        },
+        "center_session": {
+          "name": "Center session"
+        },
+        "event": {
+          "name": "Event"
+        }
+      }
+    },
+    "unregister_voice_source": {
+      "name": "Unregister external voice source",
+      "description": "Public protocol v1 for integrations. Requires a service response. Normally called automatically by the producer; see voice-protocol-v1 documentation.",
+      "fields": {
+        "protocol_version": {
+          "name": "Protocol version"
+        },
+        "source": {
+          "name": "Source identity"
+        },
+        "producer_session": {
+          "name": "Producer session"
+        },
+        "revision": {
+          "name": "Revision"
+        },
+        "center_session": {
+          "name": "Center session"
+        }
+      }
     }
   }
 }

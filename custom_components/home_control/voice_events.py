@@ -15,7 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class Notice:
-    source: str
+    source: str | tuple[str, str, str]
     level: str
     key: str
     message: str
@@ -31,12 +31,14 @@ class VoiceBus:
     def publish(self, notice):
         identity = (notice.source, notice.key)
         source = self.sources.get(notice.source)
-        if source is None or not source.runtime.controller.enabled:
+        if source is None or not source.enabled:
             return
         if notice.active:
             previous = self.active.get(identity)
             if previous == notice:
                 return
+            if previous is not None and self.center:
+                self.center.invalidate(notice.source, notice.key)
             self.active[identity] = notice
         if self.center:
             self.center.submit(notice)
@@ -56,12 +58,18 @@ class VoiceBus:
 
     def allowed(self, notice, repeat=False):
         source = self.sources.get(notice.source)
-        if source is None or not source.runtime.controller.enabled:
+        if source is None or not source.enabled:
             return False
-        config = source.runtime.config
+        config = source.preferences
         return bool(config.get("voice_" + notice.level.lower(), False)) and (
             not repeat or config.get("voice_repeat", False)
         )
+
+    def message(self, notice):
+        source = self.sources.get(notice.source)
+        if isinstance(notice.source, tuple) and source is not None:
+            return f"{source.name}. {notice.message}"
+        return notice.message
 
 
 def voice_bus(hass):
@@ -85,6 +93,14 @@ class ProcessVoice:
         self._unsubscribe = None
         self._enabled = runtime.controller.enabled
         self._completed = {}
+
+    @property
+    def enabled(self):
+        return self.runtime.controller.enabled
+
+    @property
+    def preferences(self):
+        return self.runtime.config
 
     def area(self):
         if area := self.runtime.config.get("voice_area"):
