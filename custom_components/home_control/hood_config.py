@@ -27,12 +27,24 @@ def hood_schema(values, *, name=False):
         fields[vol.Required(key, default=values.get(key, DEFAULTS[key]))] = vol.All(
             vol.Coerce(float), vol.Range(min=limits[0], max=limits[1])
         )
+    fields[
+        vol.Optional("hood_light", description={"suggested_value": values.get("hood_light", "")})
+    ] = selector.EntitySelector(selector.EntitySelectorConfig(domain=["switch", "light"]))
     return vol.Schema(fields)
 
 
 def validate_hood(hass, values, *, exclude_id=None):
     data = DEFAULTS | dict(values) | {"process_type": "hood"}
     errors = {}
+    data["hood_light"] = data.get("hood_light") or ""
+    if entity := data["hood_light"]:
+        state = hass.states.get(entity)
+        if state is None or entity.split(".")[0] not in ("light", "switch"):
+            errors["hood_light"] = "missing_entity"
+        elif str(state.attributes.get("process_type", "")).startswith("local_") or entity in [
+            data.get(key) for key in OUTPUT_KEYS
+        ]:
+            errors["hood_light"] = "automation_not_light"
     for key in INPUT_KEYS:
         data[key] = data.get(key) or ""
     outputs = [data.get(key) for key in OUTPUT_KEYS]
@@ -61,6 +73,15 @@ def validate_hood(hass, values, *, exclude_id=None):
         if entry.entry_id == exclude_id:
             continue
         other = dict(entry.data) | dict(entry.options)
+        if (
+            data["hood_light"]
+            and other.get("process_type") in ("hood", "valve_exercise", "humidity", "shared_fan")
+            and (
+                data["hood_light"] in owned_outputs(other)
+                or data["hood_light"] == other.get("hood_light")
+            )
+        ):
+            errors["hood_light"] = "groups_in_use"
         if set(outputs) & owned_outputs(other):
             errors["base"] = "groups_in_use"
         if other.get("process_type") == "hood" and set(inputs) & {

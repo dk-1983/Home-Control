@@ -28,6 +28,7 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 "mqtt_payload",
                 "input_button",
                 "night_light",
+                "hood_light",
                 "output",
                 "motion_sensors",
                 "lights",

@@ -93,7 +93,8 @@
           "input_100": "Panel input 100% (optional)",
           "feedback_timeout": "Readback timeout (seconds)",
           "break_delay": "All-off break (seconds)",
-          "input_settle": "Panel input settling time (seconds)"
+          "input_settle": "Panel input settling time (seconds)",
+          "hood_light": "Hood light (optional switch or light)"
         }
       },
       "doorbell": {
@@ -256,7 +257,8 @@
           "input_100": "Panel input 100% (optional)",
           "feedback_timeout": "Readback timeout (seconds)",
           "break_delay": "All-off break (seconds)",
-          "input_settle": "Panel input settling time (seconds)"
+          "input_settle": "Panel input settling time (seconds)",
+          "hood_light": "Hood light (optional switch or light)"
         }
       },
       "doorbell": {
@@ -361,6 +363,11 @@
     "binary_sensor": {
       "group_leak": {
         "name": "Group leak"
+      }
+    },
+    "light": {
+      "hood_light": {
+        "name": "Light"
       }
     }
   },

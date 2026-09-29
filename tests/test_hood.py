@@ -395,3 +395,68 @@ class HoodTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(runtime.attributes["commands_blocked"])
         self.assertEqual(runtime.last_speed, 75)
         self.assertFalse(self.overlap)
+
+    async def test_light_follows_sessions_and_preserves_manual_off_across_speeds(self):
+        from custom_components.home_control.light import HoodLight
+
+        self.config["hood_light"] = "light.hood"
+        self.hass.states.async_set("light.hood", "off")
+        calls = []
+
+        async def light_service(call):
+            calls.append(call.service)
+            self.hass.states.async_set("light.hood", "on" if call.service == "turn_on" else "off")
+
+        for name in ("turn_on", "turn_off"):
+            self.hass.services.async_register("light", name, light_service)
+        runtime = await self.create()
+        await runtime.async_set_enabled(True)
+        light = HoodLight(runtime)
+        await runtime.async_request(25)
+        self.assertTrue(light.is_on)
+        await runtime.async_request(75)
+        self.assertEqual(calls, ["turn_on"])
+        await light.async_turn_off()
+        await runtime.async_request(50)
+        self.assertFalse(light.is_on)
+        self.assertEqual(calls, ["turn_on", "turn_off"])
+        await runtime.async_request(0)
+        await runtime.async_request(100)
+        self.assertTrue(light.is_on)
+        await runtime.async_request(0)
+        self.assertFalse(light.is_on)
+        await light.async_turn_on()
+        self.assertTrue(light.is_on)
+        self.assertEqual(runtime.percentage, 0)
+
+    async def test_light_failure_does_not_fault_motor(self):
+        self.config["hood_light"] = "light.hood"
+        self.hass.states.async_set("light.hood", "unavailable")
+        runtime = await self.create()
+        await runtime.async_set_enabled(True)
+        await runtime.async_request(50)
+        self.assertEqual(runtime.percentage, 50)
+        self.assertFalse(runtime._failed)
+        self.assertEqual(runtime.light_error, "light_command_failed")
+
+    async def test_light_no_startup_command_and_gate(self):
+        from homeassistant.exceptions import HomeAssistantError
+
+        self.config["hood_light"] = "light.hood"
+        self.hass.states.async_set("light.hood", "off")
+        self.hardware[:] = [False, True, False, False]
+        self.publish()
+        calls = []
+
+        async def light_service(call):
+            calls.append(call.service)
+
+        self.hass.services.async_register("light", "turn_on", light_service)
+        runtime = await self.create()
+        await runtime.async_set_enabled(True)
+        await runtime.async_request(75)
+        self.assertEqual(calls, [])
+        await runtime.async_set_enabled(False)
+        with self.assertRaises(HomeAssistantError):
+            await runtime.async_light(True)
+        self.assertEqual(calls, [])

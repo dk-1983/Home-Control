@@ -58,6 +58,9 @@ class HoodRuntime:
         self._input_timer = None
         self._input_baseline = None
         self.phase = "idle"
+        self._light_lock = asyncio.Lock()
+        self._light_running = None
+        self.light_error = None
 
     def _states(self):
         return [
@@ -89,6 +92,7 @@ class HoodRuntime:
             "phase": self.phase,
             "last_error": self.last_error,
             "input_error": self.input_error,
+            "light_error": self.light_error,
             "commands_blocked": self._failed,
         }
 
@@ -112,6 +116,8 @@ class HoodRuntime:
     def _event(self, event):
         self._wake.set()
         self._changed()
+        if event.data["entity_id"] == self.config.get("hood_light"):
+            return
         if event.data["entity_id"] not in self.inputs:
             values = self._reported()
             if (
@@ -157,6 +163,8 @@ class HoodRuntime:
         self._target = None
         self._cancel_input()
         self._input_baseline = self._input_states()
+        percentage = self.percentage
+        self._light_running = None if percentage is None else percentage > 0
         self._wake.set()
         if enabled:
             self.last_error = self.input_error = None
@@ -176,7 +184,11 @@ class HoodRuntime:
                 self.last_speed = stored["last_speed"]
             self._stored_enabled = stored.get("enabled") is True
         self._unsubscribe = async_track_state_change_event(
-            self.hass, self.outputs + self.inputs, self._event
+            self.hass,
+            self.outputs
+            + self.inputs
+            + ([self.config["hood_light"]] if self.config.get("hood_light") else []),
+            self._event,
         )
         # Restore permission and memory, never a motor command or a static panel level.
         self.set_enabled(self._stored_enabled)
@@ -353,6 +365,46 @@ class HoodRuntime:
                 pass
         return False
 
+    def light_state(self):
+        state = self.hass.states.get(self.config.get("hood_light", ""))
+        return state.state if state else None
+
+    async def async_light(self, on):
+        generation = self._generation
+        async with self._light_lock:
+            if not self._active(generation):
+                raise HomeAssistantError("Hood automation is disabled")
+            entity = self.config.get("hood_light")
+            if not entity or self.light_state() not in ("on", "off"):
+                raise HomeAssistantError("Hood light is unavailable")
+            desired = "on" if on else "off"
+            if self.light_state() == desired:
+                return
+            async with asyncio.timeout(SERVICE_TIMEOUT):
+                await self.hass.services.async_call(
+                    entity.split(".")[0], f"turn_{desired}", {"entity_id": entity}, blocking=True
+                )
+            self.light_error = None
+            self._changed()
+
+    async def _follow_light(self, running, generation):
+        if not self._active(generation):
+            return
+        previous, self._light_running = self._light_running, running
+        if (
+            previous is None
+            or previous == running
+            or not self.config.get("hood_light")
+            or not self._active(generation)
+        ):
+            return
+        try:
+            await self.async_light(running)
+        except Exception:
+            self.light_error = "light_command_failed"
+            _LOGGER.warning("Hood light command failed", exc_info=True)
+            self._changed()
+
     async def _remember(self, target):
         if self.last_speed != target:
             self.last_speed = target
@@ -369,11 +421,14 @@ class HoodRuntime:
                     values = await self._read(generation)
                     if values is None:
                         return
+                    if self._light_running is None and sum(values) <= 1:
+                        self._light_running = any(values)
                     # A newer request received during the read supersedes this one.
                     if self._target != target:
                         continue
                 if target != 0 and values == tuple(speed == target for speed in SPEEDS):
                     await self._remember(target)
+                    await self._follow_light(True, generation)
                     if self._target == target:
                         self._target = None
                     continue
@@ -383,6 +438,7 @@ class HoodRuntime:
                     return
                 if self._target == 0:
                     self._target = None
+                    await self._follow_light(False, generation)
                     continue
                 if not await self._break(generation):
                     return
@@ -390,6 +446,7 @@ class HoodRuntime:
                 target = self._target
                 if target == 0:
                     self._target = None
+                    await self._follow_light(False, generation)
                     continue
                 self.phase = "starting"
                 self._changed()
@@ -398,6 +455,7 @@ class HoodRuntime:
                 expected = tuple(speed == target for speed in SPEEDS)
                 if await self._wait(expected, generation, target=target):
                     await self._remember(target)
+                    await self._follow_light(True, generation)
                     if self._target == target:
                         self._target = None
         except Exception as exc:
