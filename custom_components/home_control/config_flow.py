@@ -13,6 +13,8 @@ from .doorbell_config import DoorbellFlowMixin
 from .hood_config import hood_schema, validate_hood
 from .process_config import PROCESS_TYPES, owned_outputs, process_schema, validate_process
 from .valve_config import ValveFlowMixin
+from .voice_config import VoiceFlowMixin
+from .voice_preferences import voice_fields
 
 
 def _schema(values):
@@ -47,11 +49,13 @@ def _schema(values):
     fields[
         vol.Optional("night_light", description={"suggested_value": values.get("night_light", "")})
     ] = selector.EntitySelector(selector.EntitySelectorConfig(domain=["light", "switch"]))
+    fields.update(voice_fields(values))
     return fields
 
 
 def _validate(hass, values, *, exclude_id=None):
     data = dict(values)
+    data.setdefault("voice_area", "")
     data.setdefault("mode", "chandelier")
     data.setdefault("selection_window", DEFAULT_WINDOW)
     for key in GROUP_KEYS:
@@ -121,7 +125,7 @@ def _validate(hass, values, *, exclude_id=None):
 
 
 class HomeControlConfigFlow(
-    ValveFlowMixin, DoorbellFlowMixin, config_entries.ConfigFlow, domain=DOMAIN
+    VoiceFlowMixin, ValveFlowMixin, DoorbellFlowMixin, config_entries.ConfigFlow, domain=DOMAIN
 ):
     VERSION = 1
 
@@ -143,6 +147,7 @@ class HomeControlConfigFlow(
                 "hood",
                 "doorbell",
                 "valve_exercise",
+                "voice_center",
             ],
         )
 
@@ -205,10 +210,14 @@ class HomeControlConfigFlow(
         )
 
 
-class HomeControlOptionsFlow(ValveFlowMixin, DoorbellFlowMixin, config_entries.OptionsFlow):
+class HomeControlOptionsFlow(
+    VoiceFlowMixin, ValveFlowMixin, DoorbellFlowMixin, config_entries.OptionsFlow
+):
     async def async_step_init(self, user_input=None):
         current = dict(self.config_entry.data) | dict(self.config_entry.options)
         kind = current.get("process_type")
+        if kind == "voice_center":
+            return await self.async_step_voice_center(user_input)
         if kind == "valve_exercise":
             return await self.async_step_valve_exercise(user_input)
         if kind == "doorbell":

@@ -1,0 +1,32 @@
+announce:
+  fields:
+    source:
+      required: true
+      selector:
+        config_entry:
+          integration: home_control
+    key:
+      required: true
+      example: water_pressure
+      selector:
+        text:
+    level:
+      default: INFO
+      selector:
+        select:
+          options:
+            - INFO
+            - WARNING
+            - ERROR
+    message:
+      selector:
+        text:
+          multiline: true
+    active:
+      default: false
+      selector:
+        boolean:
+    resolved:
+      default: false
+      selector:
+        boolean:

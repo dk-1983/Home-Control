@@ -37,9 +37,14 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 "humidity_sensor",
                 "valves",
                 "leak_sensors",
+                "rooms",
+                "voice_area",
+                "fallback_area",
             },
         ),
         "enabled": runtime.controller.enabled,
-        "controller": async_redact_data(runtime.attributes, {"active_valve", "valves"}),
+        "controller": async_redact_data(
+            runtime.attributes, {"active_valve", "valves", "last_source", "speaker_results"}
+        ),
         "reported_states": runtime._states(),
     }

@@ -4,6 +4,7 @@ import voluptuous as vol
 from homeassistant.helpers import selector
 
 from .const import GROUP_KEYS
+from .voice_preferences import voice_fields
 
 PROCESS_TYPES = ("motion", "shared_fan", "humidity")
 DEFAULTS = {
@@ -84,11 +85,13 @@ def process_schema(kind, values, *, name=False):
     fields[vol.Required("feedback_timeout", default=values.get("feedback_timeout", 5))] = vol.All(
         vol.Coerce(float), vol.Range(min=1, max=60)
     )
+    fields.update(voice_fields(values))
     return vol.Schema(fields)
 
 
 def validate_process(hass, kind, values, *, exclude_id=None):
     data = dict(values)
+    data.setdefault("voice_area", "")
     errors = {}
     data["process_type"] = kind
     for key in (*TIMINGS[kind], "feedback_timeout"):

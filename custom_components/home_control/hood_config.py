@@ -6,6 +6,7 @@ from homeassistant.helpers import selector
 from .hood import DEFAULTS, INPUT_KEYS, OUTPUT_KEYS
 from .hood_readback import ReadbackError, resolve_binding
 from .process_config import owned_outputs
+from .voice_preferences import voice_fields
 
 
 def hood_schema(values, *, name=False):
@@ -30,6 +31,7 @@ def hood_schema(values, *, name=False):
     fields[
         vol.Optional("hood_light", description={"suggested_value": values.get("hood_light", "")})
     ] = selector.EntitySelector(selector.EntitySelectorConfig(domain=["switch", "light"]))
+    fields.update(voice_fields(values))
     return vol.Schema(fields)
 
 

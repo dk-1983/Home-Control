@@ -7,6 +7,8 @@ import voluptuous as vol
 from homeassistant.components import mqtt
 from homeassistant.helpers import selector
 
+from .voice_preferences import voice_fields
+
 DEFAULT_NIGHTS = [
     {
         "start": "23:00:00",
@@ -83,6 +85,7 @@ def schema(values, name=False):
     fields[
         vol.Optional("source_entity", description={"suggested_value": values.get("source_entity")})
     ] = entities(["binary_sensor", "input_button"])
+    fields.update(voice_fields(values))
     return vol.Schema(fields)
 
 
@@ -121,6 +124,7 @@ def night_schema(values):
 
 def validate(hass, values):
     data = deepcopy(values)
+    data.setdefault("voice_area", "")
     data["process_type"] = "doorbell"
     errors = {}
     url = urlparse(data.get("media_url", ""))

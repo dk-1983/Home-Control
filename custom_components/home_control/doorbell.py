@@ -12,6 +12,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, SERVICE_TIMEOUT
 from .doorbell_config import policy
+from .speaker_queue import speaker_lane
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -138,6 +139,16 @@ class DoorbellRuntime:
             )
 
     async def _speaker(self, entity, volume, generation):
+        try:
+            async with speaker_lane(self.hass, entity).claim(15):
+                speakers, volume = policy(self.config, dt_util.now())
+                if entity not in speakers:
+                    return True
+                return await self._play_speaker(entity, volume, generation)
+        except TimeoutError:
+            return False
+
+    async def _play_speaker(self, entity, volume, generation):
         state = self.hass.states.get(entity)
         if state is None or state.state in ("unknown", "unavailable"):
             return False
@@ -154,6 +165,7 @@ class DoorbellRuntime:
                 changed = True
             if not self._allowed(generation):
                 return True
+            speaker_lane(self.hass, entity).reserve(self.config["sound_duration"])
             await self._call(
                 "play_media",
                 entity,

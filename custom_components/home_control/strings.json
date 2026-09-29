@@ -17,7 +17,12 @@
           "selection_window": "Selection window (seconds)",
           "feedback_timeout": "State feedback timeout (seconds)",
           "night_light": "Night light (light or switch) — toggle with HOLD",
-          "mode": "Lighting algorithm"
+          "mode": "Lighting algorithm",
+          "voice_area": "Notification area (otherwise the process device area)",
+          "voice_info": "INFO announcements",
+          "voice_warning": "WARNING announcements",
+          "voice_error": "ERROR announcements",
+          "voice_repeat": "Repeat active ERROR notices"
         }
       },
       "user": {
@@ -29,7 +34,8 @@
           "humidity": "Humidity ventilation",
           "hood": "Kitchen hood",
           "doorbell": "Doorbell",
-          "valve_exercise": "Valve exercise"
+          "valve_exercise": "Valve exercise",
+          "voice_center": "Voice notification center"
         }
       },
       "motion": {
@@ -40,7 +46,12 @@
           "motion_sensors": "Motion sensors",
           "output": "Controlled entity",
           "light_off_delay": "Light off delay without motion (seconds)",
-          "feedback_timeout": "Command feedback timeout (seconds)"
+          "feedback_timeout": "Command feedback timeout (seconds)",
+          "voice_area": "Notification area (otherwise the process device area)",
+          "voice_info": "INFO announcements",
+          "voice_warning": "WARNING announcements",
+          "voice_error": "ERROR announcements",
+          "voice_repeat": "Repeat active ERROR notices"
         }
       },
       "shared_fan": {
@@ -53,7 +64,12 @@
           "output": "Controlled entity",
           "fan_on_delay": "Light-based fan start delay (seconds)",
           "fan_off_delay": "Shared fan run-on (seconds)",
-          "feedback_timeout": "Command feedback timeout (seconds)"
+          "feedback_timeout": "Command feedback timeout (seconds)",
+          "voice_area": "Notification area (otherwise the process device area)",
+          "voice_info": "INFO announcements",
+          "voice_warning": "WARNING announcements",
+          "voice_error": "ERROR announcements",
+          "voice_repeat": "Repeat active ERROR notices"
         }
       },
       "humidity": {
@@ -75,7 +91,12 @@
           "plateau_duration": "Plateau confirmation (seconds)",
           "uncertain_timeout_minutes": "Fallback wait without a clear trend (minutes)",
           "sensor_max_age": "Maximum sensor report age (seconds)",
-          "feedback_timeout": "Command feedback timeout (seconds)"
+          "feedback_timeout": "Command feedback timeout (seconds)",
+          "voice_area": "Notification area (otherwise the process device area)",
+          "voice_info": "INFO announcements",
+          "voice_warning": "WARNING announcements",
+          "voice_error": "ERROR announcements",
+          "voice_repeat": "Repeat active ERROR notices"
         }
       },
       "hood": {
@@ -94,7 +115,12 @@
           "feedback_timeout": "Readback timeout (seconds)",
           "break_delay": "All-off break (seconds)",
           "input_settle": "Panel input settling time (seconds)",
-          "hood_light": "Hood light (optional switch or light)"
+          "hood_light": "Hood light (optional switch or light)",
+          "voice_area": "Notification area (otherwise the process device area)",
+          "voice_info": "INFO announcements",
+          "voice_warning": "WARNING announcements",
+          "voice_error": "ERROR announcements",
+          "voice_repeat": "Repeat active ERROR notices"
         }
       },
       "doorbell": {
@@ -112,7 +138,12 @@
           "mqtt_topic": "MQTT topic",
           "mqtt_payload": "MQTT press value",
           "mqtt_key": "JSON field path (e.g. Button1.Action); empty for plain payload",
-          "source_entity": "Source entity"
+          "source_entity": "Source entity",
+          "voice_area": "Notification area (otherwise the process device area)",
+          "voice_info": "INFO announcements",
+          "voice_warning": "WARNING announcements",
+          "voice_error": "ERROR announcements",
+          "voice_repeat": "Repeat active ERROR notices"
         }
       },
       "doorbell_schedule": {
@@ -154,7 +185,72 @@
           "retry_hours": "Deferred retry interval (hours)",
           "movement_timeout": "Movement timeout (seconds)",
           "closed_hold": "Closed hold (seconds)",
-          "between_valves": "Delay between valves (seconds)"
+          "between_valves": "Delay between valves (seconds)",
+          "voice_area": "Notification area (otherwise the process device area)",
+          "voice_info": "INFO announcements",
+          "voice_warning": "WARNING announcements",
+          "voice_error": "ERROR announcements",
+          "voice_repeat": "Repeat active ERROR notices"
+        }
+      },
+      "voice_center": {
+        "title": "Voice notification center",
+        "description": "One center per home, initially disabled. New configurations include silence 23:00–09:00; remove or replace intervals on the next step. Requires locally connected Yandex Stations through YandexStation.",
+        "data": {
+          "name": "Name",
+          "info_volume": "INFO volume (0–1)",
+          "warning_volume": "WARNING volume (0–1)",
+          "error_volume": "ERROR volume (0–1)",
+          "repeat_minutes": "ERROR reminder interval (minutes)",
+          "speech_gap": "Minimum phrase interval (seconds)",
+          "motion_minutes": "Recent motion window (minutes)",
+          "fallback_area": "Fallback INFO area"
+        }
+      },
+      "voice_menu": {
+        "title": "Voice notification center",
+        "description": "Rooms: {rooms}\n\nIntervals: {intervals}",
+        "menu_options": {
+          "voice_room": "Add or replace room",
+          "voice_remove_room": "Remove room",
+          "voice_night": "Add night interval",
+          "voice_remove_night": "Remove night interval",
+          "voice_finish": "Save"
+        }
+      },
+      "voice_room": {
+        "title": "Add or replace room",
+        "description": "Selecting an existing area replaces its settings. Alternative areas are checked in order; the first occupied area with an available speaker wins. Sensors use cached HA states only.",
+        "data": {
+          "area": "Area",
+          "speakers": "Yandex Stations (may be empty)",
+          "presence": "Presence sensors",
+          "motion": "Motion sensors",
+          "alternatives": "Alternative areas in priority order"
+        }
+      },
+      "voice_remove_room": {
+        "title": "Remove room",
+        "data": {
+          "item": "Room"
+        }
+      },
+      "voice_remove_night": {
+        "title": "Remove night interval",
+        "data": {
+          "item": "Interval"
+        }
+      },
+      "voice_night": {
+        "title": "Add night interval",
+        "description": "Silence applies to every level. In sound mode, an empty speaker list means all eligible route speakers. Remove the old interval before replacing it. Weekdays refer to the start of the interval; use whole minutes.",
+        "data": {
+          "start": "Start",
+          "end": "End",
+          "days": "Start weekdays",
+          "mode": "Mode",
+          "volume": "Volume (0–1)",
+          "speakers": "Speakers (sound mode)"
         }
       }
     },
@@ -178,7 +274,14 @@
       "doorbell_url": "Enter an HTTP(S) URL ending in .mp3.",
       "doorbell_payload": "Enter the press payload.",
       "doorbell_interval": "Check times, weekdays, speakers and overlapping intervals.",
-      "valve_entities": "Select distinct existing equipment entities; the list must not be empty."
+      "valve_entities": "Select distinct existing equipment entities; the list must not be empty.",
+      "voice_overlap": "Intervals overlap. Remove the old interval before replacing it.",
+      "voice_interval": "Check times and weekdays; use whole minutes.",
+      "voice_speakers_required": "Add at least one speaker.",
+      "voice_unknown_room": "Configure the fallback and every alternative room."
+    },
+    "abort": {
+      "voice_center_exists": "A voice center already exists. Change its options."
     }
   },
   "options": {
@@ -197,7 +300,12 @@
           "selection_window": "Selection window (seconds)",
           "feedback_timeout": "State feedback timeout (seconds)",
           "night_light": "Night light (light or switch) — toggle with HOLD",
-          "mode": "Lighting algorithm"
+          "mode": "Lighting algorithm",
+          "voice_area": "Notification area (otherwise the process device area)",
+          "voice_info": "INFO announcements",
+          "voice_warning": "WARNING announcements",
+          "voice_error": "ERROR announcements",
+          "voice_repeat": "Repeat active ERROR notices"
         }
       },
       "motion": {
@@ -207,7 +315,12 @@
           "motion_sensors": "Motion sensors",
           "output": "Controlled entity",
           "light_off_delay": "Light off delay without motion (seconds)",
-          "feedback_timeout": "Command feedback timeout (seconds)"
+          "feedback_timeout": "Command feedback timeout (seconds)",
+          "voice_area": "Notification area (otherwise the process device area)",
+          "voice_info": "INFO announcements",
+          "voice_warning": "WARNING announcements",
+          "voice_error": "ERROR announcements",
+          "voice_repeat": "Repeat active ERROR notices"
         }
       },
       "shared_fan": {
@@ -219,7 +332,12 @@
           "output": "Controlled entity",
           "fan_on_delay": "Light-based fan start delay (seconds)",
           "fan_off_delay": "Shared fan run-on (seconds)",
-          "feedback_timeout": "Command feedback timeout (seconds)"
+          "feedback_timeout": "Command feedback timeout (seconds)",
+          "voice_area": "Notification area (otherwise the process device area)",
+          "voice_info": "INFO announcements",
+          "voice_warning": "WARNING announcements",
+          "voice_error": "ERROR announcements",
+          "voice_repeat": "Repeat active ERROR notices"
         }
       },
       "humidity": {
@@ -240,7 +358,12 @@
           "plateau_duration": "Plateau confirmation (seconds)",
           "uncertain_timeout_minutes": "Fallback wait without a clear trend (minutes)",
           "sensor_max_age": "Maximum sensor report age (seconds)",
-          "feedback_timeout": "Command feedback timeout (seconds)"
+          "feedback_timeout": "Command feedback timeout (seconds)",
+          "voice_area": "Notification area (otherwise the process device area)",
+          "voice_info": "INFO announcements",
+          "voice_warning": "WARNING announcements",
+          "voice_error": "ERROR announcements",
+          "voice_repeat": "Repeat active ERROR notices"
         }
       },
       "hood": {
@@ -258,7 +381,12 @@
           "feedback_timeout": "Readback timeout (seconds)",
           "break_delay": "All-off break (seconds)",
           "input_settle": "Panel input settling time (seconds)",
-          "hood_light": "Hood light (optional switch or light)"
+          "hood_light": "Hood light (optional switch or light)",
+          "voice_area": "Notification area (otherwise the process device area)",
+          "voice_info": "INFO announcements",
+          "voice_warning": "WARNING announcements",
+          "voice_error": "ERROR announcements",
+          "voice_repeat": "Repeat active ERROR notices"
         }
       },
       "doorbell": {
@@ -275,7 +403,12 @@
           "mqtt_topic": "MQTT topic",
           "mqtt_payload": "MQTT press value",
           "mqtt_key": "JSON field path (e.g. Button1.Action); empty for plain payload",
-          "source_entity": "Source entity"
+          "source_entity": "Source entity",
+          "voice_area": "Notification area (otherwise the process device area)",
+          "voice_info": "INFO announcements",
+          "voice_warning": "WARNING announcements",
+          "voice_error": "ERROR announcements",
+          "voice_repeat": "Repeat active ERROR notices"
         }
       },
       "doorbell_schedule": {
@@ -316,7 +449,72 @@
           "retry_hours": "Deferred retry interval (hours)",
           "movement_timeout": "Movement timeout (seconds)",
           "closed_hold": "Closed hold (seconds)",
-          "between_valves": "Delay between valves (seconds)"
+          "between_valves": "Delay between valves (seconds)",
+          "voice_area": "Notification area (otherwise the process device area)",
+          "voice_info": "INFO announcements",
+          "voice_warning": "WARNING announcements",
+          "voice_error": "ERROR announcements",
+          "voice_repeat": "Repeat active ERROR notices"
+        }
+      },
+      "voice_center": {
+        "title": "Voice notification center",
+        "description": "One center per home, initially disabled. New configurations include silence 23:00–09:00; remove or replace intervals on the next step. Requires locally connected Yandex Stations through YandexStation.",
+        "data": {
+          "name": "Name",
+          "info_volume": "INFO volume (0–1)",
+          "warning_volume": "WARNING volume (0–1)",
+          "error_volume": "ERROR volume (0–1)",
+          "repeat_minutes": "ERROR reminder interval (minutes)",
+          "speech_gap": "Minimum phrase interval (seconds)",
+          "motion_minutes": "Recent motion window (minutes)",
+          "fallback_area": "Fallback INFO area"
+        }
+      },
+      "voice_menu": {
+        "title": "Voice notification center",
+        "description": "Rooms: {rooms}\n\nIntervals: {intervals}",
+        "menu_options": {
+          "voice_room": "Add or replace room",
+          "voice_remove_room": "Remove room",
+          "voice_night": "Add night interval",
+          "voice_remove_night": "Remove night interval",
+          "voice_finish": "Save"
+        }
+      },
+      "voice_room": {
+        "title": "Add or replace room",
+        "description": "Selecting an existing area replaces its settings. Alternative areas are checked in order; the first occupied area with an available speaker wins. Sensors use cached HA states only.",
+        "data": {
+          "area": "Area",
+          "speakers": "Yandex Stations (may be empty)",
+          "presence": "Presence sensors",
+          "motion": "Motion sensors",
+          "alternatives": "Alternative areas in priority order"
+        }
+      },
+      "voice_remove_room": {
+        "title": "Remove room",
+        "data": {
+          "item": "Room"
+        }
+      },
+      "voice_remove_night": {
+        "title": "Remove night interval",
+        "data": {
+          "item": "Interval"
+        }
+      },
+      "voice_night": {
+        "title": "Add night interval",
+        "description": "Silence applies to every level. In sound mode, an empty speaker list means all eligible route speakers. Remove the old interval before replacing it. Weekdays refer to the start of the interval; use whole minutes.",
+        "data": {
+          "start": "Start",
+          "end": "End",
+          "days": "Start weekdays",
+          "mode": "Mode",
+          "volume": "Volume (0–1)",
+          "speakers": "Speakers (sound mode)"
         }
       }
     },
@@ -340,7 +538,11 @@
       "doorbell_url": "Enter an HTTP(S) URL ending in .mp3.",
       "doorbell_payload": "Enter the press payload.",
       "doorbell_interval": "Check times, weekdays, speakers and overlapping intervals.",
-      "valve_entities": "Select distinct existing equipment entities; the list must not be empty."
+      "valve_entities": "Select distinct existing equipment entities; the list must not be empty.",
+      "voice_overlap": "Intervals overlap. Remove the old interval before replacing it.",
+      "voice_interval": "Check times and weekdays; use whole minutes.",
+      "voice_speakers_required": "Add at least one speaker.",
+      "voice_unknown_room": "Configure the fallback and every alternative room."
     }
   },
   "entity": {
@@ -358,6 +560,9 @@
       },
       "exercise": {
         "name": "Start exercise"
+      },
+      "voice_test": {
+        "name": "Test announcement"
       }
     },
     "binary_sensor": {
@@ -401,6 +606,32 @@
         "4": "Fri",
         "5": "Sat",
         "6": "Sun"
+      }
+    }
+  },
+  "services": {
+    "announce": {
+      "name": "Voice announcement",
+      "description": "Send an event for a loaded Home Control process, respecting its levels, area and center settings.",
+      "fields": {
+        "source": {
+          "name": "Home Control process"
+        },
+        "key": {
+          "name": "Stable event key"
+        },
+        "level": {
+          "name": "Level"
+        },
+        "message": {
+          "name": "Message"
+        },
+        "active": {
+          "name": "Active issue"
+        },
+        "resolved": {
+          "name": "Issue resolved (same key)"
+        }
       }
     }
   }

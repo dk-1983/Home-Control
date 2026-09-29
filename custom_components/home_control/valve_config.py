@@ -6,6 +6,8 @@ from datetime import timedelta
 import voluptuous as vol
 from homeassistant.helpers import selector
 
+from .voice_preferences import voice_fields
+
 DEFAULTS = {
     "schedule_day": 1,
     "schedule_time": "03:00:00",
@@ -69,6 +71,7 @@ def schema(values, name=False):
             "schedule_time", default=values.get("schedule_time", DEFAULTS["schedule_time"])
         )
     ] = selector.TimeSelector()
+    fields.update(voice_fields(values))
     return vol.Schema(fields)
 
 
@@ -76,6 +79,7 @@ def validate(hass, values, exclude_id=None):
     from .process_config import owned_outputs
 
     data = DEFAULTS | dict(values) | {"process_type": "valve_exercise"}
+    data.setdefault("voice_area", "")
     errors = {}
     for key, domain in (("valves", "switch"), ("leak_sensors", "binary_sensor")):
         ids = data.get(key, [])
