@@ -65,6 +65,7 @@ class HoodRuntime:
         self._light_lock = asyncio.Lock()
         self._light_running = None
         self.light_error = None
+        self.recovery_error = None
 
     def _states(self):
         return [
@@ -98,6 +99,7 @@ class HoodRuntime:
             "input_error": self.input_error,
             "light_error": self.light_error,
             "commands_blocked": self._failed,
+            "recovery_error": self.recovery_error,
         }
 
     @callback
@@ -124,6 +126,9 @@ class HoodRuntime:
             return
         if event.data["entity_id"] not in self.inputs:
             values = self._reported()
+            if self.enabled and not self._stopped and values is None and not self._failed:
+                self._availability_fault()
+                return
             if (
                 self.enabled
                 and not self._stopped
@@ -172,8 +177,21 @@ class HoodRuntime:
         self._wake.set()
         if enabled:
             self.last_error = self.input_error = None
+            self.recovery_error = None
             self._failed = False
+            if self._reported() is None:
+                self._availability_fault()
         self._changed()
+
+    def _availability_fault(self):
+        self._record_fault("relay_unavailable")
+        # Replace a queued start with STOP, but never replay it on reconnection.
+        self._target = 0 if self._worker and not self._worker.done() else None
+        self._cancel_input()
+        self.phase = "fault"
+        _LOGGER.warning("Hood %s blocked: relay_unavailable", self.entry.entry_id)
+        self._changed()
+        self._schedule_recovery()
 
     async def _save(self):
         async with self._store_lock:
@@ -265,24 +283,22 @@ class HoodRuntime:
         self._recovery_task = self.hass.async_create_task(self._probe_recovery(self._generation))
 
     async def _probe_recovery(self, generation):
-        """Prove recovery without sending any equipment command or replaying a target."""
+        """After a fault only, read, reset all channels and confirm OFF before recovery."""
+        connected = False
         try:
+            if not self._active(generation) or not self._failed:
+                return
             self._binding = self.readback.resolve()
             first = await self._read(generation)
-            if first is None or sum(first) > 1:
-                if first is not None and sum(first) > 1:
-                    self._record_fault("multiple_active_outputs")
-                    self._changed()
+            if first is None:
                 return
-            # A contradictory output state must clear to all-off, not merely one ON.
-            if self.last_error not in RECOVERABLE_ERRORS and any(first):
+            connected = True
+            if sum(first) > 1:
+                self._record_fault("multiple_active_outputs")
+                self._changed()
+            if not await self._off(generation, best_effort=True):
                 return
-            await asyncio.sleep(self.config["break_delay"])
-            second = await self._read(generation)
-            if second is None or first != second:
-                if second is not None and sum(second) > 1:
-                    self._record_fault("multiple_active_outputs")
-                    self._changed()
+            if not await self._break(generation):
                 return
             if self.last_error == "storage_failed":
                 await self._save()
@@ -290,13 +306,22 @@ class HoodRuntime:
                 self._clear_fault()
                 self.phase = "idle"
                 self._changed()
-        except Exception:
+        except Exception as exc:
+            if connected and self._active(generation):
+                self.recovery_error = str(exc) if isinstance(exc, HoodFault) else "command_failed"
+                _LOGGER.warning(
+                    "Hood %s emergency reset failed: %s", self.entry.entry_id, self.recovery_error
+                )
             _LOGGER.debug("Hood recovery check failed for %s", self.entry.entry_id, exc_info=True)
         finally:
             if self._active(generation):
+                self.phase = "fault" if self._failed else "idle"
+                self._changed()
                 self._schedule_recovery()
 
     def _submit(self, target):
+        if self._recovery_task and not self._recovery_task.done():
+            return
         if self._failed and target != 0 and self.last_error not in RECOVERABLE_ERRORS:
             return
         self._cancel_recovery()
@@ -321,6 +346,15 @@ class HoodRuntime:
         if not self.enabled or self._stopped:
             raise HomeAssistantError("Hood automation is disabled")
         target = self.last_speed if percentage is None else percentage_step(percentage)
+        if self._recovery_task and not self._recovery_task.done():
+            if target != 0:
+                raise HomeAssistantError(
+                    "Hood emergency reset is in progress; retry after recovery"
+                )
+            await asyncio.shield(self._recovery_task)
+            if self._failed:
+                raise HomeAssistantError(self.last_error or "Hood recovery failed")
+            return
         if self._failed and target != 0 and self.last_error not in RECOVERABLE_ERRORS:
             raise HomeAssistantError("Hood is blocked; waiting for verified recovery")
         # A newer voice/UI request supersedes a panel transition still being settled.
@@ -334,6 +368,8 @@ class HoodRuntime:
     async def _command(self, entity, on, generation):
         if not self._active(generation):
             return False
+        if on and self._failed:
+            raise HoodFault(self.last_error or "command_failed")
         self._check_binding()
         async with asyncio.timeout(SERVICE_TIMEOUT):
             await self.hass.services.async_call(
@@ -408,12 +444,21 @@ class HoodRuntime:
                 pass
         return False
 
-    async def _off(self, generation):
+    async def _off(self, generation, *, best_effort=False):
         self.phase = "stopping"
         self._changed()
+        error = None
         for entity in self.outputs:
-            if not await self._command(entity, False, generation):
-                return False
+            try:
+                if not await self._command(entity, False, generation):
+                    return False
+            except Exception as exc:
+                if not best_effort:
+                    raise
+                error = exc
+                _LOGGER.warning("Hood emergency OFF failed for %s", entity, exc_info=True)
+        if error is not None:
+            raise error
         # A new physical read is requested only AFTER all off services complete.
         return await self._wait((False,) * 4, generation)
 
@@ -501,6 +546,7 @@ class HoodRuntime:
         _LOGGER.info("Hood %s recovered after verified feedback", self.entry.entry_id)
         self._failed = False
         self.last_error = None
+        self.recovery_error = None
         self._changed()
 
     async def _run(self, generation):

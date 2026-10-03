@@ -12,10 +12,11 @@ from .process_config import owned_outputs
 
 _LOGGER = logging.getLogger(__name__)
 HOOD_ERRORS = {
+    "relay_unavailable": "Потеряна доступность реле вытяжки. Управление временно заблокировано. Ожидается восстановление связи.",
     "readback_failed": "Не удалось получить свежее состояние реле вытяжки. Запуск заблокирован.",
     "feedback_timeout": "Истекло время ожидания подтверждения состояния реле вытяжки. Запуск заблокирован.",
     "command_failed": "Не удалось выполнить команду реле вытяжки. Запуск заблокирован.",
-    "multiple_active_outputs": "Получены данные о нескольких включённых скоростях вытяжки. Нужна ручная проверка.",
+    "multiple_active_outputs": "Получены данные о нескольких включённых скоростях вытяжки. Запуск заблокирован. Требуется аварийное отключение каналов.",
     "off_state_lost": "Во время паузы потеряно подтверждение отключения реле вытяжки. Нужна ручная проверка.",
     "readback_binding_changed": "Во время управления изменился источник данных реле вытяжки. Проверьте интеграцию контроллера.",
     "unsupported_hood_relays": "Реле вытяжки недоступны для проверенного управления. Проверьте интеграцию контроллера.",
@@ -191,7 +192,14 @@ class ProcessVoice:
                 if self.runtime.config.get("process_type") == "hood" and key == "last_error":
                     description = HOOD_ERRORS.get(attrs[key])
                     if description:
-                        issues[key] = ("ERROR", f"{title}. {description}")
+                        level = "WARNING" if attrs[key] == "relay_unavailable" else "ERROR"
+                        issues[key] = (level, f"{title}. {description}")
+        if self.runtime.config.get("process_type") == "hood" and attrs.get("recovery_error"):
+            issues["recovery"] = (
+                "ERROR",
+                f"{title}. Не удалось подтвердить аварийное отключение всех каналов вытяжки. "
+                "Запуск заблокирован. Проверка будет повторена.",
+            )
         if attrs.get("last_result") in ("speaker_failed", "storage_failed"):
             issues["delivery"] = (
                 "ERROR",

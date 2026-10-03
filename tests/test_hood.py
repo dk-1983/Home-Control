@@ -301,10 +301,10 @@ class HoodTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(runtime._failed)
             self.assertIsNone(runtime.last_error)
             self.assertEqual(runtime.phase, "idle")
-            self.assertEqual(len(self.commands), count)
+            self.assertEqual(self.commands[count:], [(False, i) for i in range(4)])
             self.assertEqual(runtime.last_speed, 25)
 
-    async def test_recovery_probe_accepts_stable_running_channel_without_switching(self):
+    async def test_recovery_stops_running_channel_without_restarting(self):
         runtime = await self.enabled()
         self.polling = False
         with self.assertRaises(Exception):
@@ -315,10 +315,10 @@ class HoodTests(unittest.IsolatedAsyncioTestCase):
         count = len(self.commands)
         await runtime._probe_recovery(runtime._generation)
         self.assertFalse(runtime._failed)
-        self.assertEqual(len(self.commands), count)
-        self.assertTrue(self.hardware[1])
+        self.assertEqual(self.commands[count:], [(False, i) for i in range(4)])
+        self.assertFalse(any(self.hardware))
 
-    async def test_safety_recovery_requires_all_off_and_does_not_issue_commands(self):
+    async def test_safety_recovery_resets_outputs_and_requires_confirmed_off(self):
         runtime = await self.enabled()
         self.hardware[:] = [True, True, False, False]
         self.publish()
@@ -326,12 +326,105 @@ class HoodTests(unittest.IsolatedAsyncioTestCase):
         await runtime.async_wait_idle()
         count = len(self.commands)
         self.hardware[0] = True
+        self.ack_writes = False
         await runtime._probe_recovery(runtime._generation)
         self.assertTrue(runtime._failed)
-        self.hardware[0] = False
+        self.assertIsNotNone(runtime.recovery_error)
+        self.ack_writes = True
         await runtime._probe_recovery(runtime._generation)
         self.assertFalse(runtime._failed)
+        self.assertIsNone(runtime.recovery_error)
+        self.assertFalse(any(self.hardware))
+        self.assertFalse(any(on for on, _ in self.commands[count:]))
+
+    async def test_idle_unavailability_detected_without_user_command(self):
+        runtime = await self.enabled()
+        self.polling = False
+        self.hass.states.async_set(self.outputs[0], "unavailable")
+        await asyncio.sleep(0)
+        self.assertTrue(runtime._failed)
+        self.assertEqual(runtime.last_error, "relay_unavailable")
+        self.assertEqual(self.commands, [])
+        self.polling = True
+        self.publish()
+        await runtime._probe_recovery(runtime._generation)
+        self.assertFalse(runtime._failed)
+        self.assertEqual(self.commands, [(False, i) for i in range(4)])
+        count = len(self.commands)
+        await runtime._probe_recovery(runtime._generation)
         self.assertEqual(len(self.commands), count)
+
+    async def test_disabled_unavailability_does_not_reset_equipment(self):
+        runtime = await self.create()
+        self.hass.states.async_set(self.outputs[0], "unavailable")
+        await asyncio.sleep(0.02)
+        self.assertFalse(runtime._failed)
+        self.assertIsNone(runtime._recovery_timer)
+        self.assertEqual(self.commands, [])
+
+    async def test_recovery_and_user_start_cannot_overlap(self):
+        runtime = await self.enabled()
+        runtime._record_fault("relay_unavailable")
+        self.polling = False
+        runtime._start_recovery()
+        await asyncio.sleep(0.01)
+        with self.assertRaisesRegex(Exception, "reset is in progress"):
+            await runtime.async_request(100)
+        self.polling = True
+        await runtime._recovery_task
+        self.assertFalse(runtime._failed)
+        self.assertFalse(any(on for on, _ in self.commands))
+
+    async def test_disabling_during_emergency_off_stops_remaining_channels(self):
+        runtime = await self.enabled()
+        runtime._record_fault("relay_unavailable")
+        original = runtime._command
+
+        async def command(entity, on, generation):
+            result = await original(entity, on, generation)
+            runtime.set_enabled(False)
+            return result
+
+        runtime._command = command
+        await runtime._probe_recovery(runtime._generation)
+        self.assertEqual(self.commands, [(False, 0)])
+        self.assertTrue(runtime._failed)
+        self.assertIsNone(runtime._recovery_timer)
+
+    async def test_emergency_reset_attempts_other_channels_after_service_failure(self):
+        runtime = await self.enabled()
+        runtime._record_fault("relay_unavailable")
+        attempts = []
+
+        async def service(call):
+            attempts.append(call.data["entity_id"])
+            if len(attempts) == 1:
+                raise OSError("first channel failed")
+
+        self.hass.services.async_register("switch", "turn_off", service)
+        await runtime._probe_recovery(runtime._generation)
+        self.assertEqual(attempts, self.outputs)
+        self.assertTrue(runtime._failed)
+        self.assertEqual(runtime.recovery_error, "command_failed")
+
+    async def test_unavailability_during_start_cancels_target(self):
+        runtime = await self.enabled()
+        original = runtime.readback.async_read
+        calls = 0
+
+        async def read():
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                self.hass.states.async_set(self.outputs[0], "unavailable")
+                await asyncio.sleep(0)
+            return await original()
+
+        with patch.object(runtime.readback, "async_read", side_effect=read):
+            with self.assertRaises(Exception):
+                await runtime.async_request(75)
+        self.assertFalse(any(on for on, _ in self.commands))
+        self.assertIsNone(runtime._target)
 
     async def test_disable_cancels_recovery_poll_and_timer(self):
         with patch("custom_components.home_control.hood.RECOVERY_INTERVAL", 0.02):

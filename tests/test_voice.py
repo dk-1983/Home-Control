@@ -323,6 +323,26 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
         await self.drain()
         self.assertEqual(len(self.calls), 2)
 
+    async def test_hood_availability_warning_escalates_on_failed_reset(self):
+        await self.enable()
+        self.source_runtime.config.update(process_type="hood", voice_repeat=False)
+        self.source_runtime.attributes["last_error"] = "relay_unavailable"
+        self.observer.update()
+        self.observer.update()
+        await self.drain()
+        self.assertEqual(len(self.calls), 2)
+        notice = self.runtime.bus.active[("source", "last_error")]
+        self.assertEqual(notice.level, "WARNING")
+        self.assertIn("Потеряна доступность", notice.message)
+        self.source_runtime.attributes["recovery_error"] = "feedback_timeout"
+        self.observer.update()
+        await self.drain()
+        self.assertEqual(len(self.calls), 4)
+        self.assertEqual(self.runtime.bus.active[("source", "recovery")].level, "ERROR")
+        self.source_runtime.attributes.update(last_error=None, recovery_error=None)
+        self.observer.update()
+        self.assertFalse(self.runtime.bus.active)
+
     async def test_equipment_replacement_does_not_change_source_route(self):
         from custom_components.home_control.voice_events import ProcessVoice
 
