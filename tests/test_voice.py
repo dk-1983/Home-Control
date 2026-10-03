@@ -343,6 +343,53 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
         self.observer.update()
         self.assertFalse(self.runtime.bus.active)
 
+    async def test_hood_verified_recovery_info_once_and_local(self):
+        await self.enable()
+        self.source_runtime.config["process_type"] = "hood"
+        self.source_runtime.attributes.update(last_error="relay_unavailable", commands_blocked=True)
+        self.observer.update()
+        await self.drain()
+        self.calls.clear()
+        # Availability returning alone is not verified recovery.
+        self.source_runtime.attributes.update(last_error=None, commands_blocked=False)
+        self.observer.update()
+        await self.drain()
+        self.assertFalse(self.calls)
+        self.source_runtime.attributes["recovery_count"] = 1
+        self.observer.update()
+        self.observer.update()
+        await self.drain()
+        self.assertEqual(len(self.calls), 1)
+        self.assertEqual(self.calls[0]["entity_id"], "media_player.kitchen")
+        self.assertIn("Вытяжка снова доступна", str(self.calls[0]))
+
+    async def test_new_hood_fault_cancels_queued_recovery_info(self):
+        await self.enable()
+        self.source_runtime.config["process_type"] = "hood"
+        self.source_runtime.attributes["recovery_count"] = 1
+        self.observer.update()
+        self.source_runtime.attributes.update(last_error="relay_unavailable", commands_blocked=True)
+        self.observer.update()
+        await self.drain()
+        self.assertEqual(len(self.calls), 2)
+        self.assertNotIn("Вытяжка снова доступна", str(self.calls))
+
+    async def test_hood_recovery_info_respects_preference_and_maintenance(self):
+        await self.enable()
+        self.source_runtime.config.update(process_type="hood", voice_info=False)
+        self.source_runtime.attributes["recovery_count"] = 1
+        self.observer.update()
+        await self.drain()
+        self.assertFalse(self.calls)
+        self.source_runtime.config["voice_info"] = True
+        self.source_runtime.controller.enabled = False
+        self.observer.update()
+        self.source_runtime.attributes["recovery_count"] = 2
+        self.source_runtime.controller.enabled = True
+        self.observer.update()
+        await self.drain()
+        self.assertFalse(self.calls)
+
     async def test_equipment_replacement_does_not_change_source_route(self):
         from custom_components.home_control.voice_events import ProcessVoice
 

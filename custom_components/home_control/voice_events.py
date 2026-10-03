@@ -105,6 +105,7 @@ class ProcessVoice:
         self._unsubscribe = None
         self._enabled = runtime.controller.enabled
         self._completed = {}
+        self._hood_recovery_count = runtime.attributes.get("recovery_count", 0)
 
     @property
     def enabled(self):
@@ -170,6 +171,7 @@ class ProcessVoice:
             self._issues.clear()
             self._baseline = self._snapshot()
             self._enabled = False
+            self._hood_recovery_count = self.runtime.attributes.get("recovery_count", 0)
             if self._timer:
                 self._timer.cancel()
                 self._timer = None
@@ -233,6 +235,25 @@ class ProcessVoice:
         for key, (level, message) in issues.items():
             self.bus.publish(Notice(self.source, level, key, message, True))
         self._issues = set(issues)
+        if self.runtime.config.get("process_type") == "hood":
+            count = attrs.get("recovery_count", 0)
+            if (
+                attrs.get("commands_blocked")
+                or attrs.get("last_error")
+                or attrs.get("recovery_error")
+            ):
+                if self.bus.center:
+                    self.bus.center.invalidate(self.source, "hood_recovered")
+            elif self._enabled and count != self._hood_recovery_count:
+                self.bus.publish(
+                    Notice(
+                        self.source,
+                        "INFO",
+                        "hood_recovered",
+                        f"{title}. Вытяжка снова доступна. Управление восстановлено.",
+                    )
+                )
+            self._hood_recovery_count = count
         if not self._enabled:
             self._baseline = self._snapshot()
         self._enabled = True

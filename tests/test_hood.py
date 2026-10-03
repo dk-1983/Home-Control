@@ -350,9 +350,11 @@ class HoodTests(unittest.IsolatedAsyncioTestCase):
         await runtime._probe_recovery(runtime._generation)
         self.assertFalse(runtime._failed)
         self.assertEqual(self.commands, [(False, i) for i in range(4)])
+        self.assertEqual(runtime.attributes["recovery_count"], 1)
         count = len(self.commands)
         await runtime._probe_recovery(runtime._generation)
         self.assertEqual(len(self.commands), count)
+        self.assertEqual(runtime.attributes["recovery_count"], 1)
 
     async def test_disabled_unavailability_does_not_reset_equipment(self):
         runtime = await self.create()

@@ -66,6 +66,7 @@ class HoodRuntime:
         self._light_running = None
         self.light_error = None
         self.recovery_error = None
+        self.recovery_count = 0
 
     def _states(self):
         return [
@@ -100,6 +101,7 @@ class HoodRuntime:
             "light_error": self.light_error,
             "commands_blocked": self._failed,
             "recovery_error": self.recovery_error,
+            "recovery_count": self.recovery_count,
         }
 
     @callback
@@ -543,6 +545,8 @@ class HoodRuntime:
             self._clear_fault()
 
     def _clear_fault(self):
+        if self._failed:
+            self.recovery_count += 1
         _LOGGER.info("Hood %s recovered after verified feedback", self.entry.entry_id)
         self._failed = False
         self.last_error = None
