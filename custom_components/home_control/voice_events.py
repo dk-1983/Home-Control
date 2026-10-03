@@ -11,6 +11,17 @@ from .const import DOMAIN, selected_groups
 from .process_config import owned_outputs
 
 _LOGGER = logging.getLogger(__name__)
+HOOD_ERRORS = {
+    "readback_failed": "Не удалось получить свежее состояние реле вытяжки. Запуск заблокирован.",
+    "feedback_timeout": "Истекло время ожидания подтверждения состояния реле вытяжки. Запуск заблокирован.",
+    "command_failed": "Не удалось выполнить команду реле вытяжки. Запуск заблокирован.",
+    "multiple_active_outputs": "Получены данные о нескольких включённых скоростях вытяжки. Нужна ручная проверка.",
+    "off_state_lost": "Во время паузы потеряно подтверждение отключения реле вытяжки. Нужна ручная проверка.",
+    "readback_binding_changed": "Во время управления изменился источник данных реле вытяжки. Проверьте интеграцию контроллера.",
+    "unsupported_hood_relays": "Реле вытяжки недоступны для проверенного управления. Проверьте интеграцию контроллера.",
+    "invalid_readback_data": "Контроллер вернул некорректные данные состояния реле вытяжки. Нужна ручная проверка.",
+    "storage_failed": "Не удалось сохранить настройки вытяжки. Запуск заблокирован.",
+}
 
 
 @dataclass(frozen=True)
@@ -177,6 +188,10 @@ class ProcessVoice:
                         "light_error": "Не удалось управлять подсветкой вытяжки.",
                     }[key],
                 )
+                if self.runtime.config.get("process_type") == "hood" and key == "last_error":
+                    description = HOOD_ERRORS.get(attrs[key])
+                    if description:
+                        issues[key] = ("ERROR", f"{title}. {description}")
         if attrs.get("last_result") in ("speaker_failed", "storage_failed"):
             issues["delivery"] = (
                 "ERROR",

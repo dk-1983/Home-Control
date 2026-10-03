@@ -17,6 +17,8 @@ SPEEDS = (25, 50, 75, 100)
 OUTPUT_KEYS = tuple(f"speed_{speed}" for speed in SPEEDS)
 INPUT_KEYS = tuple(f"input_{speed}" for speed in SPEEDS)
 DEFAULTS = {"feedback_timeout": 15.0, "break_delay": 0.5, "input_settle": 1.0}
+RECOVERABLE_ERRORS = frozenset({"feedback_timeout", "readback_failed", "command_failed"})
+RECOVERY_INTERVAL = 15.0
 
 
 def percentage_step(value):
@@ -27,7 +29,7 @@ def percentage_step(value):
 
 
 class HoodFault(Exception):
-    """No further start is allowed until the process is explicitly reset."""
+    """Abort the request; a later command must pass the recovery barrier."""
 
 
 class HoodRuntime:
@@ -57,6 +59,8 @@ class HoodRuntime:
         self._unsubscribe = None
         self._input_timer = None
         self._input_baseline = None
+        self._recovery_timer = None
+        self._recovery_task = None
         self.phase = "idle"
         self._light_lock = asyncio.Lock()
         self._light_running = None
@@ -128,8 +132,8 @@ class HoodRuntime:
                 and values is not None
                 and sum(values) > 1
             ):
-                self._failed = True
-                self.last_error = "multiple_active_outputs"
+                self._record_fault("multiple_active_outputs")
+                _LOGGER.warning("Hood %s blocked: %s", self.entry.entry_id, self.last_error)
                 self._submit(0)
             return
         old, new = event.data.get("old_state"), event.data.get("new_state")
@@ -154,10 +158,10 @@ class HoodRuntime:
             self._changed()
             return
         self.input_error = None
-        if not self._failed:
-            self._submit(SPEEDS[values.index(True)] if any(values) else 0)
+        self._submit(SPEEDS[values.index(True)] if any(values) else 0)
 
     def set_enabled(self, enabled):
+        self._cancel_recovery()
         self.enabled = enabled
         self._generation += 1
         self._target = None
@@ -217,6 +221,8 @@ class HoodRuntime:
             self._unsubscribe()
             self._unsubscribe = None
         await self.async_wait_idle()
+        if self._recovery_task:
+            await asyncio.gather(self._recovery_task, return_exceptions=True)
 
     async def async_wait_idle(self):
         if self._worker:
@@ -225,14 +231,84 @@ class HoodRuntime:
     def _active(self, generation):
         return self.enabled and not self._stopped and generation == self._generation
 
+    def _record_fault(self, error):
+        # A later communication failure must not downgrade a safety latch.
+        if (
+            not self._failed
+            or self.last_error in RECOVERABLE_ERRORS
+            or error not in RECOVERABLE_ERRORS
+        ):
+            self.last_error = error
+        self._failed = True
+
+    def _cancel_recovery(self):
+        if self._recovery_timer:
+            self._recovery_timer.cancel()
+            self._recovery_timer = None
+        if self._recovery_task and not self._recovery_task.done():
+            self._recovery_task.cancel()
+
+    def _schedule_recovery(self):
+        if self.enabled and not self._stopped and self._failed and self._recovery_timer is None:
+            self._recovery_timer = self.hass.loop.call_later(
+                RECOVERY_INTERVAL, self._start_recovery
+            )
+
+    @callback
+    def _start_recovery(self):
+        self._recovery_timer = None
+        if not self.enabled or self._stopped or not self._failed:
+            return
+        if self._worker and not self._worker.done():
+            self._schedule_recovery()
+            return
+        self._recovery_task = self.hass.async_create_task(self._probe_recovery(self._generation))
+
+    async def _probe_recovery(self, generation):
+        """Prove recovery without sending any equipment command or replaying a target."""
+        try:
+            self._binding = self.readback.resolve()
+            first = await self._read(generation)
+            if first is None or sum(first) > 1:
+                if first is not None and sum(first) > 1:
+                    self._record_fault("multiple_active_outputs")
+                    self._changed()
+                return
+            # A contradictory output state must clear to all-off, not merely one ON.
+            if self.last_error not in RECOVERABLE_ERRORS and any(first):
+                return
+            await asyncio.sleep(self.config["break_delay"])
+            second = await self._read(generation)
+            if second is None or first != second:
+                if second is not None and sum(second) > 1:
+                    self._record_fault("multiple_active_outputs")
+                    self._changed()
+                return
+            if self.last_error == "storage_failed":
+                await self._save()
+            if self._active(generation):
+                self._clear_fault()
+                self.phase = "idle"
+                self._changed()
+        except Exception:
+            _LOGGER.debug("Hood recovery check failed for %s", self.entry.entry_id, exc_info=True)
+        finally:
+            if self._active(generation):
+                self._schedule_recovery()
+
     def _submit(self, target):
+        if self._failed and target != 0 and self.last_error not in RECOVERABLE_ERRORS:
+            return
+        self._cancel_recovery()
         try:
             binding = self.readback.resolve()
         except ReadbackError as exc:
             self._target = None
-            self.last_error = str(exc)
-            self._failed = True
+            self._record_fault(str(exc))
+            self.phase = "fault"
+            _LOGGER.warning("Hood %s blocked: %s", self.entry.entry_id, self.last_error)
             self._changed()
+            self._schedule_recovery()
             return
         self._target = target
         self._wake.set()
@@ -245,8 +321,8 @@ class HoodRuntime:
         if not self.enabled or self._stopped:
             raise HomeAssistantError("Hood automation is disabled")
         target = self.last_speed if percentage is None else percentage_step(percentage)
-        if self._failed and target != 0:
-            raise HomeAssistantError("Hood is blocked; inspect feedback and reset automation")
+        if self._failed and target != 0 and self.last_error not in RECOVERABLE_ERRORS:
+            raise HomeAssistantError("Hood is blocked; waiting for verified recovery")
         # A newer voice/UI request supersedes a panel transition still being settled.
         self._cancel_input()
         self._input_baseline = self._input_states()
@@ -346,7 +422,10 @@ class HoodRuntime:
         self._changed()
         deadline = self.hass.loop.time() + self.config["break_delay"]
         while self._active(generation):
-            if self._reported() != (False,) * 4:
+            reported = self._reported()
+            if reported is None:
+                raise HoodFault("readback_failed")
+            if reported != (False,) * 4:
                 raise HoodFault("off_state_lost")
             if self.hass.loop.time() >= deadline:
                 # The pause is not proof. Read again immediately before allowing ON.
@@ -413,6 +492,17 @@ class HoodRuntime:
             except Exception as exc:
                 raise HoodFault("storage_failed") from exc
 
+    def _clear_transient_fault(self):
+        """Called only after a new command has confirmed the all-off barrier."""
+        if self._failed and self.last_error in RECOVERABLE_ERRORS:
+            self._clear_fault()
+
+    def _clear_fault(self):
+        _LOGGER.info("Hood %s recovered after verified feedback", self.entry.entry_id)
+        self._failed = False
+        self.last_error = None
+        self._changed()
+
     async def _run(self, generation):
         try:
             while self._active(generation) and self._target is not None:
@@ -421,12 +511,18 @@ class HoodRuntime:
                     values = await self._read(generation)
                     if values is None:
                         return
+                    if sum(values) > 1:
+                        raise HoodFault("multiple_active_outputs")
                     if self._light_running is None and sum(values) <= 1:
                         self._light_running = any(values)
                     # A newer request received during the read supersedes this one.
                     if self._target != target:
                         continue
-                if target != 0 and values == tuple(speed == target for speed in SPEEDS):
+                if (
+                    not self._failed
+                    and target != 0
+                    and values == tuple(speed == target for speed in SPEEDS)
+                ):
                     await self._remember(target)
                     await self._follow_light(True, generation)
                     if self._target == target:
@@ -438,10 +534,12 @@ class HoodRuntime:
                     return
                 if self._target == 0:
                     self._target = None
+                    self._clear_transient_fault()
                     await self._follow_light(False, generation)
                     continue
                 if not await self._break(generation):
                     return
+                self._clear_transient_fault()
                 # Latest requested speed wins only after the all-off barrier.
                 target = self._target
                 if target == 0:
@@ -459,9 +557,13 @@ class HoodRuntime:
                     if self._target == target:
                         self._target = None
         except Exception as exc:
-            self.last_error = str(exc) if isinstance(exc, HoodFault) else "command_failed"
-            self._failed = True
+            self._record_fault(str(exc) if isinstance(exc, HoodFault) else "command_failed")
             self._target = None
+            self._cancel_input()
+            _LOGGER.warning(
+                "Hood %s blocked: %s", self.entry.entry_id, self.last_error, exc_info=True
+            )
+            self._changed()
             # Best-effort stop, never a retry of turn_on. Maintenance closes this gate too.
             for entity in self.outputs:
                 try:
@@ -470,5 +572,10 @@ class HoodRuntime:
                 except Exception:
                     _LOGGER.warning("Hood stop command failed", exc_info=True)
         finally:
+            if self._failed:
+                # Requests arriving during emergency cleanup must not replay later.
+                self._target = None
+                self._cancel_input()
             self.phase = "fault" if self._failed else "idle"
             self._changed()
+            self._schedule_recovery()

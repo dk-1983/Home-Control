@@ -5,9 +5,12 @@ Modbus protocol requests, patch the other integration, or trust optimistic HA
 states as confirmation. The adapter is limited to the reviewed M3000 layout.
 """
 
+import logging
 from dataclasses import dataclass
 
 from homeassistant.helpers.entity_component import DATA_INSTANCES
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class ReadbackError(Exception):
@@ -71,6 +74,12 @@ class HoodReadback:
         if self.resolve() != binding or self.hass.is_stopping:
             raise ReadbackError("readback_binding_changed")
         if not coordinator.last_update_success or coordinator.data is previous:
+            _LOGGER.warning(
+                "Hood readback rejected: successful_poll=%s, new_snapshot=%s, poll_error=%r",
+                coordinator.last_update_success,
+                coordinator.data is not previous,
+                coordinator.last_exception,
+            )
             raise ReadbackError("readback_failed")
         # A concurrent completed write may have overlaid a snapshot or mutated
         # the driver's shared dictionaries. Such a result cannot authorize ON.

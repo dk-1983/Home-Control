@@ -197,20 +197,171 @@ class HoodTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.commands, before)
         self.assertFalse(any(on for on, _ in self.commands))
 
-    async def test_off_confirmation_timeout_latches_until_reset(self):
+    async def test_timeout_recovers_only_on_new_request_with_off_barrier(self):
         runtime = await self.enabled()
         self.polling = False
         with self.assertRaises(Exception):
             await runtime.async_request(50)
         count = len(self.commands)
         self.polling = True
-        with self.assertRaises(Exception):
-            await runtime.async_request(100)
+        await asyncio.sleep(0.03)
         self.assertEqual(len(self.commands), count)
+        self.assertTrue(runtime._failed)
+        await runtime.async_request(100)
+        self.assertEqual(self.commands[count:], [(False, i) for i in range(4)] + [(True, 3)])
+        self.assertEqual(runtime.percentage, 100)
+        self.assertFalse(runtime._failed)
+        self.assertIsNone(runtime.last_error)
+        self.assertFalse(self.overlap)
+
+    async def test_recovery_does_not_trust_optimistic_off(self):
+        runtime = await self.enabled()
+        self.polling = False
+        with self.assertRaises(Exception):
+            await runtime.async_request(50)
+        self.polling = True
+        self.hardware[0] = True
+        self.publish()
+        self.ack_writes = False
+        with self.assertRaisesRegex(Exception, "feedback_timeout"):
+            await runtime.async_request(100)
+        self.assertTrue(runtime._failed)
+        self.assertFalse(any(on for on, _ in self.commands))
+
+    async def test_panel_new_edge_recovers_transient_fault(self):
+        runtime = await self.enabled()
+        self.polling = False
+        with self.assertRaises(Exception):
+            await runtime.async_request(50)
+        self.polling = True
+        self.hass.states.async_set(self.inputs[2], "on")
+        await asyncio.sleep(0.06)
+        await runtime.async_wait_idle()
+        self.assertFalse(runtime._failed)
+        self.assertEqual(runtime.percentage, 75)
+        self.assertFalse(self.overlap)
+
+    async def test_stop_confirms_recovery_without_starting(self):
+        runtime = await self.enabled()
+        self.polling = False
+        with self.assertRaises(Exception):
+            await runtime.async_request(50)
+        self.polling = True
+        await runtime.async_request(0)
+        self.assertFalse(runtime._failed)
+        self.assertIsNone(runtime.last_error)
+        self.assertFalse(any(on for on, _ in self.commands))
+
+    async def test_disabling_during_recovery_stops_further_commands(self):
+        runtime = await self.enabled()
+        self.polling = False
+        with self.assertRaises(Exception):
+            await runtime.async_request(50)
+        request = asyncio.create_task(runtime.async_request(100))
+        await asyncio.sleep(0.01)
+        count = len(self.commands)
         await runtime.async_set_enabled(False)
-        await runtime.async_set_enabled(True)
-        await runtime.async_request(50)
-        self.assertEqual(runtime.percentage, 50)
+        with self.assertRaises(Exception):
+            await request
+        self.polling = True
+        await asyncio.sleep(0.03)
+        self.assertEqual(len(self.commands), count)
+        self.assertFalse(any(on for on, _ in self.commands))
+
+    async def test_read_failure_recovers_but_rechecks_running_target(self):
+        from custom_components.home_control.hood_readback import ReadbackError
+
+        runtime = await self.enabled()
+        with patch.object(
+            runtime.readback, "async_read", side_effect=ReadbackError("readback_failed")
+        ):
+            with self.assertRaisesRegex(Exception, "readback_failed"):
+                await runtime.async_request(75)
+        # Even if the requested speed already appears on, recovery must stop first.
+        self.hardware[2] = True
+        self.publish()
+        count = len(self.commands)
+        await runtime.async_request(75)
+        self.assertEqual(self.commands[count:], [(False, i) for i in range(4)] + [(True, 2)])
+        self.assertFalse(runtime._failed)
+        self.assertFalse(self.overlap)
+
+    async def test_automatic_recovery_after_network_returns_without_replaying(self):
+        with patch("custom_components.home_control.hood.RECOVERY_INTERVAL", 0.02):
+            runtime = await self.enabled()
+            self.polling = False
+            with self.assertRaises(Exception):
+                await runtime.async_request(75)
+            count = len(self.commands)
+            self.polling = True
+            for _ in range(100):
+                if not runtime._failed:
+                    break
+                await asyncio.sleep(0.01)
+            self.assertFalse(runtime._failed)
+            self.assertIsNone(runtime.last_error)
+            self.assertEqual(runtime.phase, "idle")
+            self.assertEqual(len(self.commands), count)
+            self.assertEqual(runtime.last_speed, 25)
+
+    async def test_recovery_probe_accepts_stable_running_channel_without_switching(self):
+        runtime = await self.enabled()
+        self.polling = False
+        with self.assertRaises(Exception):
+            await runtime.async_request(75)
+        self.polling = True
+        self.hardware[1] = True
+        self.publish()
+        count = len(self.commands)
+        await runtime._probe_recovery(runtime._generation)
+        self.assertFalse(runtime._failed)
+        self.assertEqual(len(self.commands), count)
+        self.assertTrue(self.hardware[1])
+
+    async def test_safety_recovery_requires_all_off_and_does_not_issue_commands(self):
+        runtime = await self.enabled()
+        self.hardware[:] = [True, True, False, False]
+        self.publish()
+        await asyncio.sleep(0.04)
+        await runtime.async_wait_idle()
+        count = len(self.commands)
+        self.hardware[0] = True
+        await runtime._probe_recovery(runtime._generation)
+        self.assertTrue(runtime._failed)
+        self.hardware[0] = False
+        await runtime._probe_recovery(runtime._generation)
+        self.assertFalse(runtime._failed)
+        self.assertEqual(len(self.commands), count)
+
+    async def test_disable_cancels_recovery_poll_and_timer(self):
+        with patch("custom_components.home_control.hood.RECOVERY_INTERVAL", 0.02):
+            runtime = await self.enabled()
+            self.polling = False
+            with self.assertRaises(Exception):
+                await runtime.async_request(75)
+            await asyncio.sleep(0.03)
+            self.assertIsNotNone(runtime._recovery_task)
+            count = len(self.commands)
+            await runtime.async_set_enabled(False)
+            self.polling = True
+            await asyncio.sleep(0.04)
+            self.assertTrue(runtime._failed)
+            self.assertIsNone(runtime._recovery_timer)
+            self.assertEqual(len(self.commands), count)
+
+    async def test_inconsistent_recovery_snapshots_keep_fault(self):
+        runtime = await self.enabled()
+        self.polling = False
+        with self.assertRaises(Exception):
+            await runtime.async_request(75)
+        self.polling = True
+        with patch.object(
+            runtime.readback,
+            "async_read",
+            side_effect=[(False,) * 4, (True, False, False, False)],
+        ):
+            await runtime._probe_recovery(runtime._generation)
+        self.assertTrue(runtime._failed)
 
     async def test_panel_edges_and_static_panel_does_not_override_voice(self):
         runtime = await self.enabled()
@@ -375,6 +526,38 @@ class HoodTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(any(self.hardware))
         self.assertTrue(runtime.attributes["commands_blocked"])
         self.assertFalse(any(on for on, _ in self.commands))
+        count = len(self.commands)
+        with self.assertRaisesRegex(Exception, "blocked"):
+            await runtime.async_request(100)
+        self.hass.states.async_set(self.inputs[2], "on")
+        await asyncio.sleep(0.03)
+        self.assertEqual(len(self.commands), count)
+        # A physical stop is still accepted while the safety fault stays latched.
+        self.hass.states.async_set(self.inputs[2], "off")
+        await asyncio.sleep(0.04)
+        await runtime.async_wait_idle()
+        self.assertEqual(self.commands[count:], [(False, i) for i in range(4)])
+        self.assertTrue(runtime._failed)
+
+    async def test_failed_stop_does_not_downgrade_safety_latch(self):
+        runtime = await self.enabled()
+        self.hardware[:] = [True, True, False, False]
+        self.publish()
+        await asyncio.sleep(0.04)
+        await runtime.async_wait_idle()
+        self.assertEqual(runtime.last_error, "multiple_active_outputs")
+        self.polling = False
+        with self.assertRaisesRegex(Exception, "multiple_active_outputs"):
+            await runtime.async_request(0)
+        self.polling = True
+        count = len(self.commands)
+        with self.assertRaisesRegex(Exception, "blocked"):
+            await runtime.async_request(100)
+        self.assertEqual(len(self.commands), count)
+        await runtime.async_set_enabled(False)
+        await runtime.async_set_enabled(True)
+        await runtime.async_request(100)
+        self.assertEqual(runtime.percentage, 100)
 
     async def test_concurrent_lighting_write_requires_another_poll(self):
         runtime = await self.enabled()

@@ -299,6 +299,30 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
         self.observer.update()
         self.assertFalse(self.runtime.bus.active)
 
+    async def test_hood_fault_voice_explains_cause_and_resolves(self):
+        await self.enable()
+        self.source_runtime.config.update(process_type="hood", voice_repeat=False)
+        self.source_runtime.attributes["last_error"] = "readback_failed"
+        self.observer.update()
+        self.observer.update()
+        await self.drain()
+        self.assertEqual(len(self.calls), 2)
+        notice = self.runtime.bus.active[("source", "last_error")]
+        self.assertIn("свежее состояние реле", notice.message)
+        self.assertEqual(notice.level, "ERROR")
+        self.assertFalse(self.runtime.bus.allowed(notice, repeat=True))
+        self.source_runtime.attributes["last_error"] = "multiple_active_outputs"
+        self.observer.update()
+        self.assertIn(
+            "нескольких включённых скоростях",
+            self.runtime.bus.active[("source", "last_error")].message,
+        )
+        self.source_runtime.attributes["last_error"] = None
+        self.observer.update()
+        self.assertNotIn(("source", "last_error"), self.runtime.bus.active)
+        await self.drain()
+        self.assertEqual(len(self.calls), 2)
+
     async def test_equipment_replacement_does_not_change_source_route(self):
         from custom_components.home_control.voice_events import ProcessVoice
 
