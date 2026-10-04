@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Home Control</title>
+  <desc id="desc">A cyan house surrounding a power button on a dark navy rounded square.</desc>
+  <rect width="512" height="512" rx="112" fill="#071B2C"/>
+  <path d="M104 230 256 106 408 230" fill="none" stroke="#00C7EA" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M132 218v160a24 24 0 0 0 24 24h200a24 24 0 0 0 24-24V218" fill="none" stroke="#00C7EA" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M213 253a65 65 0 1 0 86 0" fill="none" stroke="#F4FAFF" stroke-width="23" stroke-linecap="round"/>
+  <path d="M256 215v72" fill="none" stroke="#00C7EA" stroke-width="23" stroke-linecap="round"/>
+</svg>
