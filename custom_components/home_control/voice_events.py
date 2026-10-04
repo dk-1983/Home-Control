@@ -199,7 +199,7 @@ class ProcessVoice:
         if self.runtime.config.get("process_type") == "hood" and attrs.get("recovery_error"):
             issues["recovery"] = (
                 "ERROR",
-                f"{title}. Не удалось подтвердить аварийное отключение всех каналов вытяжки. "
+                f"{title}. Не удалось завершить восстановление управления вытяжкой. "
                 "Запуск заблокирован. Проверка будет повторена.",
             )
         if attrs.get("last_result") in ("speaker_failed", "storage_failed"):

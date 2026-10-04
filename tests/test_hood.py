@@ -349,7 +349,7 @@ class HoodTests(unittest.IsolatedAsyncioTestCase):
         self.publish()
         await runtime._probe_recovery(runtime._generation)
         self.assertFalse(runtime._failed)
-        self.assertEqual(self.commands, [(False, i) for i in range(4)])
+        self.assertEqual(self.commands, [])
         self.assertEqual(runtime.attributes["recovery_count"], 1)
         count = len(self.commands)
         await runtime._probe_recovery(runtime._generation)
@@ -363,6 +363,142 @@ class HoodTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(runtime._failed)
         self.assertIsNone(runtime._recovery_timer)
         self.assertEqual(self.commands, [])
+
+    async def lose_link(self, runtime):
+        self.polling = False
+        for entity in self.outputs:
+            self.hass.states.async_set(entity, "unavailable")
+        await asyncio.sleep(0)
+        self.assertTrue(runtime._failed)
+
+    async def test_link_return_preserves_running_speed_without_any_command(self):
+        runtime = await self.enabled()
+        await runtime.async_request(75)
+        await self.lose_link(runtime)
+        self.assertEqual(runtime.attributes["outage_percentage"], 75)
+        count = len(self.commands)
+        self.polling = True
+        self.publish()
+        await runtime._probe_recovery(runtime._generation)
+        self.assertFalse(runtime._failed)
+        self.assertEqual(len(self.commands), count)
+        self.assertEqual(runtime.percentage, 75)
+
+    async def test_link_return_restores_lost_speed_after_off_barrier(self):
+        runtime = await self.enabled()
+        await runtime.async_request(50)
+        await self.lose_link(runtime)
+        self.hardware[:] = [False] * 4
+        count = len(self.commands)
+        self.polling = True
+        self.publish()
+        await runtime._probe_recovery(runtime._generation)
+        self.assertFalse(runtime._failed)
+        self.assertEqual(self.commands[count:], [(False, i) for i in range(4)] + [(True, 1)])
+        self.assertEqual(runtime.percentage, 50)
+        self.assertFalse(self.overlap)
+
+    async def test_off_before_link_loss_does_not_resume_remembered_speed(self):
+        runtime = await self.enabled()
+        await runtime.async_request(75)
+        await runtime.async_request(0)
+        await self.lose_link(runtime)
+        self.assertEqual(runtime.last_speed, 75)
+        self.assertEqual(runtime.attributes["outage_percentage"], 0)
+        count = len(self.commands)
+        self.polling = True
+        self.publish()
+        await runtime._probe_recovery(runtime._generation)
+        self.assertEqual(len(self.commands), count)
+        self.assertEqual(runtime.percentage, 0)
+        self.assertFalse(runtime._failed)
+
+    async def test_multiple_channels_after_link_loss_cancel_automatic_resume(self):
+        runtime = await self.enabled()
+        await runtime.async_request(75)
+        await self.lose_link(runtime)
+        self.hardware[:] = [True, True, False, False]
+        self.polling = True
+        self.publish()
+        count = len(self.commands)
+        await runtime._probe_recovery(runtime._generation)
+        self.assertFalse(runtime._failed)
+        self.assertFalse(any(self.hardware))
+        self.assertFalse(any(on for on, _ in self.commands[count:]))
+
+    async def test_stop_during_recovery_cancels_automatic_resume(self):
+        runtime = await self.enabled()
+        await runtime.async_request(75)
+        await self.lose_link(runtime)
+        self.hardware[:] = [False] * 4
+        runtime._start_recovery()
+        await asyncio.sleep(0.01)
+        stop = asyncio.create_task(runtime.async_request(0))
+        await asyncio.sleep(0)
+        self.polling = True
+        self.publish()
+        count = len(self.commands)
+        await stop
+        self.assertFalse(runtime._failed)
+        self.assertFalse(any(on for on, _ in self.commands[count:]))
+
+    async def test_failed_automatic_start_is_not_retried(self):
+        runtime = await self.enabled()
+        await runtime.async_request(75)
+        await self.lose_link(runtime)
+        self.hardware[:] = [False] * 4
+        self.ack_writes = False
+        self.polling = True
+        self.publish()
+        count = len(self.commands)
+        await runtime._probe_recovery(runtime._generation)
+        self.assertTrue(runtime._failed)
+        self.assertIsNone(runtime.attributes["outage_percentage"])
+        self.ack_writes = True
+        await runtime._probe_recovery(runtime._generation)
+        self.assertFalse(runtime._failed)
+        self.assertEqual([i for on, i in self.commands[count:] if on], [2])
+
+    async def test_changed_single_channel_restores_previous_speed_without_overlap(self):
+        runtime = await self.enabled()
+        await runtime.async_request(75)
+        await self.lose_link(runtime)
+        self.hardware[:] = [True, False, False, False]
+        self.polling = True
+        self.publish()
+        count = len(self.commands)
+        await runtime._probe_recovery(runtime._generation)
+        self.assertEqual(self.commands[count:], [(False, i) for i in range(4)] + [(True, 2)])
+        self.assertFalse(self.overlap)
+
+    async def test_maintenance_cancels_outage_restore(self):
+        runtime = await self.enabled()
+        await runtime.async_request(75)
+        await self.lose_link(runtime)
+        count = len(self.commands)
+        await runtime.async_set_enabled(False)
+        self.hardware[:] = [False] * 4
+        self.polling = True
+        self.publish()
+        await runtime.async_set_enabled(True)
+        await runtime._probe_recovery(runtime._generation)
+        self.assertEqual(len(self.commands), count)
+        self.assertIsNone(runtime.attributes["outage_percentage"])
+
+    async def test_storage_restart_does_not_replay_outage_state(self):
+        runtime = await self.enabled()
+        await runtime.async_request(75)
+        await self.lose_link(runtime)
+        await runtime.async_stop()
+        self.hardware[:] = [False] * 4
+        self.polling = True
+        self.publish()
+        count = len(self.commands)
+        restored = await self.create()
+        self.assertEqual(restored.last_speed, 75)
+        self.assertIsNone(restored.attributes["outage_percentage"])
+        await restored._probe_recovery(restored._generation)
+        self.assertEqual(len(self.commands), count)
 
     async def test_recovery_and_user_start_cannot_overlap(self):
         runtime = await self.enabled()
@@ -379,7 +515,7 @@ class HoodTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_disabling_during_emergency_off_stops_remaining_channels(self):
         runtime = await self.enabled()
-        runtime._record_fault("relay_unavailable")
+        runtime._record_fault("command_failed")
         original = runtime._command
 
         async def command(entity, on, generation):
@@ -395,7 +531,7 @@ class HoodTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_emergency_reset_attempts_other_channels_after_service_failure(self):
         runtime = await self.enabled()
-        runtime._record_fault("relay_unavailable")
+        runtime._record_fault("command_failed")
         attempts = []
 
         async def service(call):
@@ -655,6 +791,8 @@ class HoodTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(runtime.percentage, 100)
 
     async def test_concurrent_lighting_write_requires_another_poll(self):
+        # This verifies race rejection, not a 120 ms scheduler deadline.
+        self.config["feedback_timeout"] = 0.5
         runtime = await self.enabled()
         original = self.coordinator._async_update_data
         raced = False

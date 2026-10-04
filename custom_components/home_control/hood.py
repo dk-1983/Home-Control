@@ -67,6 +67,8 @@ class HoodRuntime:
         self.light_error = None
         self.recovery_error = None
         self.recovery_count = 0
+        self._last_available_percentage = None
+        self._outage_percentage = None
 
     def _states(self):
         return [
@@ -102,6 +104,8 @@ class HoodRuntime:
             "commands_blocked": self._failed,
             "recovery_error": self.recovery_error,
             "recovery_count": self.recovery_count,
+            "last_available_percentage": self._last_available_percentage,
+            "outage_percentage": self._outage_percentage,
         }
 
     @callback
@@ -128,6 +132,14 @@ class HoodRuntime:
             return
         if event.data["entity_id"] not in self.inputs:
             values = self._reported()
+            if (
+                self.enabled
+                and not self._failed
+                and (self._worker is None or self._worker.done())
+                and values is not None
+                and sum(values) <= 1
+            ):
+                self._last_available_percentage = self.percentage
             if self.enabled and not self._stopped and values is None and not self._failed:
                 self._availability_fault()
                 return
@@ -175,6 +187,8 @@ class HoodRuntime:
         self._cancel_input()
         self._input_baseline = self._input_states()
         percentage = self.percentage
+        self._last_available_percentage = percentage if enabled else None
+        self._outage_percentage = None
         self._light_running = None if percentage is None else percentage > 0
         self._wake.set()
         if enabled:
@@ -252,6 +266,20 @@ class HoodRuntime:
         return self.enabled and not self._stopped and generation == self._generation
 
     def _record_fault(self, error):
+        if not self._failed:
+            self._outage_percentage = (
+                self._last_available_percentage
+                if error in ("relay_unavailable", "readback_failed")
+                and (self._worker is None or self._worker.done())
+                else None
+            )
+        elif error not in (
+            "relay_unavailable",
+            "readback_failed",
+            "feedback_timeout",
+            "command_failed",
+        ):
+            self._outage_percentage = None
         # A later communication failure must not downgrade a safety latch.
         if (
             not self._failed
@@ -285,8 +313,9 @@ class HoodRuntime:
         self._recovery_task = self.hass.async_create_task(self._probe_recovery(self._generation))
 
     async def _probe_recovery(self, generation):
-        """After a fault only, read, reset all channels and confirm OFF before recovery."""
+        """Preserve a running session after link loss; reset unsafe/unknown states."""
         connected = False
+        attempted_start = False
         try:
             if not self._active(generation) or not self._failed:
                 return
@@ -295,6 +324,18 @@ class HoodRuntime:
             if first is None:
                 return
             connected = True
+            saved = self._outage_percentage
+            expected = tuple(speed == saved for speed in SPEEDS)
+            if saved is not None and first == expected:
+                await asyncio.sleep(self.config["break_delay"])
+                second = await self._read(generation)
+                if second is None:
+                    return
+                if second == expected and self._outage_percentage == saved:
+                    self._last_available_percentage = saved
+                    self._clear_fault()
+                    return
+                first = second
             if sum(first) > 1:
                 self._record_fault("multiple_active_outputs")
                 self._changed()
@@ -302,13 +343,44 @@ class HoodRuntime:
                 return
             if not await self._break(generation):
                 return
+            saved = self._outage_percentage
+            if saved in SPEEDS:
+                attempted_start = True
+                if not await self._command(
+                    self.outputs[SPEEDS.index(saved)], True, generation, recovery=True
+                ):
+                    return
+                if not await self._wait(tuple(speed == saved for speed in SPEEDS), generation):
+                    return
+                # STOP received during the write/confirmation always wins.
+                if self._outage_percentage == 0:
+                    if not await self._off(generation, best_effort=True):
+                        return
+                    saved = 0
             if self.last_error == "storage_failed":
                 await self._save()
             if self._active(generation):
+                self._last_available_percentage = saved or 0
                 self._clear_fault()
                 self.phase = "idle"
                 self._changed()
         except Exception as exc:
+            if isinstance(exc, (HoodFault, ReadbackError)) and str(exc) not in (
+                "relay_unavailable",
+                "readback_failed",
+                "feedback_timeout",
+                "command_failed",
+            ):
+                self._record_fault(str(exc))
+            if attempted_start:
+                # Never repeatedly retry an unconfirmed automatic ON.
+                self._outage_percentage = None
+                for entity in self.outputs:
+                    try:
+                        if not await self._command(entity, False, generation):
+                            break
+                    except Exception:
+                        _LOGGER.warning("Hood recovery stop failed", exc_info=True)
             if connected and self._active(generation):
                 self.recovery_error = str(exc) if isinstance(exc, HoodFault) else "command_failed"
                 _LOGGER.warning(
@@ -322,6 +394,8 @@ class HoodRuntime:
                 self._schedule_recovery()
 
     def _submit(self, target):
+        if self._outage_percentage is not None and target == 0:
+            self._outage_percentage = 0
         if self._recovery_task and not self._recovery_task.done():
             return
         if self._failed and target != 0 and self.last_error not in RECOVERABLE_ERRORS:
@@ -348,6 +422,8 @@ class HoodRuntime:
         if not self.enabled or self._stopped:
             raise HomeAssistantError("Hood automation is disabled")
         target = self.last_speed if percentage is None else percentage_step(percentage)
+        if self._outage_percentage is not None and target == 0:
+            self._outage_percentage = 0
         if self._recovery_task and not self._recovery_task.done():
             if target != 0:
                 raise HomeAssistantError(
@@ -367,10 +443,18 @@ class HoodRuntime:
         if self._failed:
             raise HomeAssistantError(self.last_error or "Hood command failed")
 
-    async def _command(self, entity, on, generation):
+    async def _command(self, entity, on, generation, *, recovery=False):
         if not self._active(generation):
             return False
-        if on and self._failed:
+        if (
+            on
+            and self._failed
+            and not (
+                recovery
+                and self._outage_percentage in SPEEDS
+                and entity == self.outputs[SPEEDS.index(self._outage_percentage)]
+            )
+        ):
             raise HoodFault(self.last_error or "command_failed")
         self._check_binding()
         async with asyncio.timeout(SERVICE_TIMEOUT):
@@ -462,7 +546,10 @@ class HoodRuntime:
         if error is not None:
             raise error
         # A new physical read is requested only AFTER all off services complete.
-        return await self._wait((False,) * 4, generation)
+        confirmed = await self._wait((False,) * 4, generation)
+        if confirmed and not self._failed:
+            self._last_available_percentage = 0
+        return confirmed
 
     async def _break(self, generation):
         self.phase = "break"
@@ -532,6 +619,7 @@ class HoodRuntime:
             self._changed()
 
     async def _remember(self, target):
+        self._last_available_percentage = target
         if self.last_speed != target:
             self.last_speed = target
             try:
@@ -551,6 +639,7 @@ class HoodRuntime:
         self._failed = False
         self.last_error = None
         self.recovery_error = None
+        self._outage_percentage = None
         self._changed()
 
     async def _run(self, generation):
