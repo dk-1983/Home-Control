@@ -6,6 +6,10 @@ from .entity import HomeControlEntity
 
 
 async def async_setup_entry(hass, entry, async_add_entities) -> None:
+    if entry.runtime_data.config.get(
+        "process_type"
+    ) == "laundry" and not entry.runtime_data.config.get("manual_acknowledge", False):
+        return
     if hasattr(entry.runtime_data, "async_press"):
         async_add_entities([ChandelierButton(entry.runtime_data)])
 
@@ -16,6 +20,9 @@ class ChandelierButton(HomeControlEntity, ButtonEntity):
 
     def __init__(self, runtime) -> None:
         super().__init__(runtime, "press")
+        if runtime.config.get("process_type") == "laundry":
+            self._attr_translation_key = "laundry_acknowledge"
+            self._attr_icon = "mdi:washing-machine-off"
         if runtime.config.get("process_type") == "voice_center":
             self._attr_translation_key = "voice_test"
             self._attr_icon = "mdi:account-voice"

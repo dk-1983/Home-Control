@@ -390,6 +390,31 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
         await self.drain()
         self.assertFalse(self.calls)
 
+    async def test_info_broadcast_respects_silence_and_speaker_filter(self):
+        from custom_components.home_control.doorbell_config import slots
+
+        self.source_runtime.config["voice_scope"] = "all"
+        self.assertEqual(
+            self.runtime.route(self.notice())[0], ["media_player.bedroom", "media_player.kitchen"]
+        )
+        rule = dict(
+            start="00:00:00",
+            end="23:59:00",
+            days=list(range(7)),
+            mode="silent",
+            volume=0.1,
+            speakers=[],
+        )
+        self.runtime._night_slots = [(slots(rule), rule)]
+        with patch(
+            "custom_components.home_control.voice_runtime.dt_util.now",
+            return_value=datetime(2026, 10, 10, 3),
+        ):
+            self.assertEqual(self.runtime.route(self.notice())[0], [])
+            rule["mode"] = "volume"
+            rule["speakers"] = ["media_player.kitchen"]
+            self.assertEqual(self.runtime.route(self.notice()), (["media_player.kitchen"], 0.1))
+
     async def test_equipment_replacement_does_not_change_source_route(self):
         from custom_components.home_control.voice_events import ProcessVoice
 

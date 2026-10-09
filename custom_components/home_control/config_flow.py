@@ -11,6 +11,7 @@ from homeassistant.helpers import selector
 from .const import DEFAULT_FEEDBACK_TIMEOUT, DEFAULT_WINDOW, DOMAIN, GROUP_KEYS, selected_groups
 from .doorbell_config import DoorbellFlowMixin
 from .hood_config import hood_schema, validate_hood
+from .laundry_config import LaundryFlowMixin
 from .process_config import PROCESS_TYPES, owned_outputs, process_schema, validate_process
 from .valve_config import ValveFlowMixin
 from .voice_config import VoiceFlowMixin
@@ -125,7 +126,12 @@ def _validate(hass, values, *, exclude_id=None):
 
 
 class HomeControlConfigFlow(
-    VoiceFlowMixin, ValveFlowMixin, DoorbellFlowMixin, config_entries.ConfigFlow, domain=DOMAIN
+    LaundryFlowMixin,
+    VoiceFlowMixin,
+    ValveFlowMixin,
+    DoorbellFlowMixin,
+    config_entries.ConfigFlow,
+    domain=DOMAIN,
 ):
     VERSION = 1
 
@@ -148,6 +154,7 @@ class HomeControlConfigFlow(
                 "doorbell",
                 "valve_exercise",
                 "voice_center",
+                "laundry",
             ],
         )
 
@@ -211,11 +218,13 @@ class HomeControlConfigFlow(
 
 
 class HomeControlOptionsFlow(
-    VoiceFlowMixin, ValveFlowMixin, DoorbellFlowMixin, config_entries.OptionsFlow
+    LaundryFlowMixin, VoiceFlowMixin, ValveFlowMixin, DoorbellFlowMixin, config_entries.OptionsFlow
 ):
     async def async_step_init(self, user_input=None):
         current = dict(self.config_entry.data) | dict(self.config_entry.options)
         kind = current.get("process_type")
+        if kind == "laundry":
+            return await self.async_step_laundry(user_input)
         if kind == "voice_center":
             return await self.async_step_voice_center(user_input)
         if kind == "valve_exercise":

@@ -10,6 +10,7 @@ from homeassistant.helpers.storage import Store
 from .const import DOMAIN
 from .doorbell import DoorbellRuntime
 from .hood import HoodRuntime
+from .laundry import LaundryRuntime
 from .process_config import PROCESS_TYPES
 from .process_runtime import ProcessRuntime
 from .runtime import HomeControlRuntime
@@ -27,15 +28,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     doorbell = config.get("process_type") == "doorbell"
     valve = config.get("process_type") == "valve_exercise"
     voice = config.get("process_type") == "voice_center"
+    laundry = config.get("process_type") == "laundry"
     needs_mqtt = (
         config.get("source") == "mqtt"
         if doorbell
-        else not environmental and not hood and not valve and not voice
+        else not environmental and not hood and not valve and not voice and not laundry
     )
     if needs_mqtt and not await mqtt.async_wait_for_mqtt_client(hass):
         raise ConfigEntryNotReady("Configure MQTT before Home Control")
     runtime = (
-        VoiceRuntime(hass, entry)
+        LaundryRuntime(hass, entry)
+        if laundry
+        else VoiceRuntime(hass, entry)
         if voice
         else ValveRuntime(hass, entry)
         if valve
@@ -51,7 +55,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         await runtime.async_start()
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-        if not voice:
+        if not voice and not laundry:
             runtime.voice_observer = ProcessVoice(runtime)
             runtime.voice_observer.start()
     except Exception:

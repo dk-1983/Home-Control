@@ -22,7 +22,8 @@
           "voice_info": "Оповещения INFO",
           "voice_warning": "Оповещения WARNING",
           "voice_error": "Оповещения ERROR",
-          "voice_repeat": "Повторять активные ERROR"
+          "voice_repeat": "Повторять активные ERROR",
+          "voice_scope": "Куда направлять INFO"
         }
       },
       "user": {
@@ -35,7 +36,8 @@
           "hood": "Кухонная вытяжка",
           "doorbell": "Дверной звонок",
           "valve_exercise": "Тренировка клапанов",
-          "voice_center": "Центр голосовых оповещений"
+          "voice_center": "Центр голосовых оповещений",
+          "laundry": "Напоминание о белье"
         }
       },
       "motion": {
@@ -51,7 +53,8 @@
           "voice_info": "Оповещения INFO",
           "voice_warning": "Оповещения WARNING",
           "voice_error": "Оповещения ERROR",
-          "voice_repeat": "Повторять активные ERROR"
+          "voice_repeat": "Повторять активные ERROR",
+          "voice_scope": "Куда направлять INFO"
         }
       },
       "shared_fan": {
@@ -69,7 +72,8 @@
           "voice_info": "Оповещения INFO",
           "voice_warning": "Оповещения WARNING",
           "voice_error": "Оповещения ERROR",
-          "voice_repeat": "Повторять активные ERROR"
+          "voice_repeat": "Повторять активные ERROR",
+          "voice_scope": "Куда направлять INFO"
         }
       },
       "humidity": {
@@ -96,7 +100,8 @@
           "voice_info": "Оповещения INFO",
           "voice_warning": "Оповещения WARNING",
           "voice_error": "Оповещения ERROR",
-          "voice_repeat": "Повторять активные ERROR"
+          "voice_repeat": "Повторять активные ERROR",
+          "voice_scope": "Куда направлять INFO"
         }
       },
       "hood": {
@@ -120,7 +125,8 @@
           "voice_info": "Оповещения INFO",
           "voice_warning": "Оповещения WARNING",
           "voice_error": "Оповещения ERROR",
-          "voice_repeat": "Повторять активные ERROR"
+          "voice_repeat": "Повторять активные ERROR",
+          "voice_scope": "Куда направлять INFO"
         }
       },
       "doorbell": {
@@ -143,7 +149,8 @@
           "voice_info": "Оповещения INFO",
           "voice_warning": "Оповещения WARNING",
           "voice_error": "Оповещения ERROR",
-          "voice_repeat": "Повторять активные ERROR"
+          "voice_repeat": "Повторять активные ERROR",
+          "voice_scope": "Куда направлять INFO"
         }
       },
       "doorbell_schedule": {
@@ -190,7 +197,8 @@
           "voice_info": "Оповещения INFO",
           "voice_warning": "Оповещения WARNING",
           "voice_error": "Оповещения ERROR",
-          "voice_repeat": "Повторять активные ERROR"
+          "voice_repeat": "Повторять активные ERROR",
+          "voice_scope": "Куда направлять INFO"
         }
       },
       "voice_center": {
@@ -252,6 +260,23 @@
           "volume": "Громкость (0–1)",
           "speakers": "Колонки (для звука)"
         }
+      },
+      "laundry": {
+        "title": "Напоминание о белье",
+        "description": "Наблюдает за машиной без управления. По умолчанию выключение, unknown или unavailable после завершения снимают напоминание как подтверждение разгрузки, в том числе при потере сети. Для ручного подтверждения включите кнопку. INFO по умолчанию на все колонки с учётом тихих часов центра. Включите INFO и автоматику после настройки.",
+        "data": {
+          "name": "Название процесса",
+          "washer_status": "Текущее состояние машины",
+          "washer_notification": "События уведомлений машины",
+          "washer_error": "События ошибок машины (необязательно)",
+          "reminders": "Повторять напоминания о белье",
+          "reminder_minutes": "Интервал напоминаний (минуты)",
+          "voice_scope": "Куда направлять INFO",
+          "voice_area": "Помещение для локальных оповещений",
+          "voice_info": "Оповещения INFO",
+          "voice_error": "Оповещения ERROR",
+          "manual_acknowledge": "Подтверждать разгрузку кнопкой"
+        }
       }
     },
     "error": {
@@ -278,7 +303,8 @@
       "voice_overlap": "Интервалы пересекаются. Удалите прежний интервал перед заменой.",
       "voice_interval": "Проверьте время и дни недели; используйте целые минуты.",
       "voice_speakers_required": "Добавьте хотя бы одну колонку.",
-      "voice_unknown_room": "Добавьте настройки резервного и всех альтернативных помещений."
+      "voice_unknown_room": "Добавьте настройки резервного и всех альтернативных помещений.",
+      "laundry_in_use": "Эта машина уже настроена в другом процессе."
     },
     "abort": {
       "voice_center_exists": "Центр уже существует. Измените его настройки."
@@ -305,7 +331,8 @@
           "voice_info": "Оповещения INFO",
           "voice_warning": "Оповещения WARNING",
           "voice_error": "Оповещения ERROR",
-          "voice_repeat": "Повторять активные ERROR"
+          "voice_repeat": "Повторять активные ERROR",
+          "voice_scope": "Куда направлять INFO"
         }
       },
       "motion": {
@@ -320,7 +347,8 @@
           "voice_info": "Оповещения INFO",
           "voice_warning": "Оповещения WARNING",
           "voice_error": "Оповещения ERROR",
-          "voice_repeat": "Повторять активные ERROR"
+          "voice_repeat": "Повторять активные ERROR",
+          "voice_scope": "Куда направлять INFO"
         }
       },
       "shared_fan": {
@@ -337,7 +365,8 @@
           "voice_info": "Оповещения INFO",
           "voice_warning": "Оповещения WARNING",
           "voice_error": "Оповещения ERROR",
-          "voice_repeat": "Повторять активные ERROR"
+          "voice_repeat": "Повторять активные ERROR",
+          "voice_scope": "Куда направлять INFO"
         }
       },
       "humidity": {
@@ -363,7 +392,8 @@
           "voice_info": "Оповещения INFO",
           "voice_warning": "Оповещения WARNING",
           "voice_error": "Оповещения ERROR",
-          "voice_repeat": "Повторять активные ERROR"
+          "voice_repeat": "Повторять активные ERROR",
+          "voice_scope": "Куда направлять INFO"
         }
       },
       "hood": {
@@ -386,7 +416,8 @@
           "voice_info": "Оповещения INFO",
           "voice_warning": "Оповещения WARNING",
           "voice_error": "Оповещения ERROR",
-          "voice_repeat": "Повторять активные ERROR"
+          "voice_repeat": "Повторять активные ERROR",
+          "voice_scope": "Куда направлять INFO"
         }
       },
       "doorbell": {
@@ -408,7 +439,8 @@
           "voice_info": "Оповещения INFO",
           "voice_warning": "Оповещения WARNING",
           "voice_error": "Оповещения ERROR",
-          "voice_repeat": "Повторять активные ERROR"
+          "voice_repeat": "Повторять активные ERROR",
+          "voice_scope": "Куда направлять INFO"
         }
       },
       "doorbell_schedule": {
@@ -454,7 +486,8 @@
           "voice_info": "Оповещения INFO",
           "voice_warning": "Оповещения WARNING",
           "voice_error": "Оповещения ERROR",
-          "voice_repeat": "Повторять активные ERROR"
+          "voice_repeat": "Повторять активные ERROR",
+          "voice_scope": "Куда направлять INFO"
         }
       },
       "voice_center": {
@@ -516,6 +549,23 @@
           "volume": "Громкость (0–1)",
           "speakers": "Колонки (для звука)"
         }
+      },
+      "laundry": {
+        "title": "Напоминание о белье",
+        "description": "Наблюдает за машиной без управления. По умолчанию выключение, unknown или unavailable после завершения снимают напоминание как подтверждение разгрузки, в том числе при потере сети. Для ручного подтверждения включите кнопку. INFO по умолчанию на все колонки с учётом тихих часов центра. Включите INFO и автоматику после настройки.",
+        "data": {
+          "name": "Название процесса",
+          "washer_status": "Текущее состояние машины",
+          "washer_notification": "События уведомлений машины",
+          "washer_error": "События ошибок машины (необязательно)",
+          "reminders": "Повторять напоминания о белье",
+          "reminder_minutes": "Интервал напоминаний (минуты)",
+          "voice_scope": "Куда направлять INFO",
+          "voice_area": "Помещение для локальных оповещений",
+          "voice_info": "Оповещения INFO",
+          "voice_error": "Оповещения ERROR",
+          "manual_acknowledge": "Подтверждать разгрузку кнопкой"
+        }
       }
     },
     "error": {
@@ -542,7 +592,8 @@
       "voice_overlap": "Интервалы пересекаются. Удалите прежний интервал перед заменой.",
       "voice_interval": "Проверьте время и дни недели; используйте целые минуты.",
       "voice_speakers_required": "Добавьте хотя бы одну колонку.",
-      "voice_unknown_room": "Добавьте настройки резервного и всех альтернативных помещений."
+      "voice_unknown_room": "Добавьте настройки резервного и всех альтернативных помещений.",
+      "laundry_in_use": "Эта машина уже настроена в другом процессе."
     }
   },
   "entity": {
@@ -563,11 +614,17 @@
       },
       "voice_test": {
         "name": "Проверка оповещения"
+      },
+      "laundry_acknowledge": {
+        "name": "Бельё забрано"
       }
     },
     "binary_sensor": {
       "group_leak": {
         "name": "Протечка группы"
+      },
+      "laundry_waiting": {
+        "name": "Бельё ждёт разгрузки"
       }
     },
     "light": {
@@ -606,6 +663,12 @@
         "4": "Пт",
         "5": "Сб",
         "6": "Вс"
+      }
+    },
+    "voice_scope": {
+      "options": {
+        "local": "Локально",
+        "all": "Все колонки"
       }
     }
   },

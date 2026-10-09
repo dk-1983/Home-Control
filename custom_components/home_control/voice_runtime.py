@@ -174,9 +174,9 @@ class VoiceRuntime:
                 if rule.get("speakers"):
                     allowed.intersection_update(rule["speakers"])
                 break
-        if notice.level != "INFO":
-            return sorted(allowed), volume
         source = self.bus.sources.get(notice.source)
+        if notice.level != "INFO" or (source and source.preferences.get("voice_scope") == "all"):
+            return sorted(allowed), volume
         area = source.area() if source else None
         room = rooms.get(area, {})
         local = [e for e in room.get("speakers", []) if e in allowed]

@@ -22,7 +22,8 @@
           "voice_info": "INFO announcements",
           "voice_warning": "WARNING announcements",
           "voice_error": "ERROR announcements",
-          "voice_repeat": "Repeat active ERROR notices"
+          "voice_repeat": "Repeat active ERROR notices",
+          "voice_scope": "INFO destination"
         }
       },
       "user": {
@@ -35,7 +36,8 @@
           "hood": "Kitchen hood",
           "doorbell": "Doorbell",
           "valve_exercise": "Valve exercise",
-          "voice_center": "Voice notification center"
+          "voice_center": "Voice notification center",
+          "laundry": "Laundry reminder"
         }
       },
       "motion": {
@@ -51,7 +53,8 @@
           "voice_info": "INFO announcements",
           "voice_warning": "WARNING announcements",
           "voice_error": "ERROR announcements",
-          "voice_repeat": "Repeat active ERROR notices"
+          "voice_repeat": "Repeat active ERROR notices",
+          "voice_scope": "INFO destination"
         }
       },
       "shared_fan": {
@@ -69,7 +72,8 @@
           "voice_info": "INFO announcements",
           "voice_warning": "WARNING announcements",
           "voice_error": "ERROR announcements",
-          "voice_repeat": "Repeat active ERROR notices"
+          "voice_repeat": "Repeat active ERROR notices",
+          "voice_scope": "INFO destination"
         }
       },
       "humidity": {
@@ -96,7 +100,8 @@
           "voice_info": "INFO announcements",
           "voice_warning": "WARNING announcements",
           "voice_error": "ERROR announcements",
-          "voice_repeat": "Repeat active ERROR notices"
+          "voice_repeat": "Repeat active ERROR notices",
+          "voice_scope": "INFO destination"
         }
       },
       "hood": {
@@ -120,7 +125,8 @@
           "voice_info": "INFO announcements",
           "voice_warning": "WARNING announcements",
           "voice_error": "ERROR announcements",
-          "voice_repeat": "Repeat active ERROR notices"
+          "voice_repeat": "Repeat active ERROR notices",
+          "voice_scope": "INFO destination"
         }
       },
       "doorbell": {
@@ -143,7 +149,8 @@
           "voice_info": "INFO announcements",
           "voice_warning": "WARNING announcements",
           "voice_error": "ERROR announcements",
-          "voice_repeat": "Repeat active ERROR notices"
+          "voice_repeat": "Repeat active ERROR notices",
+          "voice_scope": "INFO destination"
         }
       },
       "doorbell_schedule": {
@@ -190,7 +197,8 @@
           "voice_info": "INFO announcements",
           "voice_warning": "WARNING announcements",
           "voice_error": "ERROR announcements",
-          "voice_repeat": "Repeat active ERROR notices"
+          "voice_repeat": "Repeat active ERROR notices",
+          "voice_scope": "INFO destination"
         }
       },
       "voice_center": {
@@ -252,6 +260,23 @@
           "volume": "Volume (0–1)",
           "speakers": "Speakers (sound mode)"
         }
+      },
+      "laundry": {
+        "title": "Laundry reminder",
+        "description": "Observes without controlling the washer. By default power-off, unknown or unavailable after completion acknowledge collection, including network loss. Enable the button for manual acknowledgement instead. INFO defaults to all speakers and respects center quiet hours. Enable INFO and automation after setup.",
+        "data": {
+          "name": "Process name",
+          "washer_status": "Washer current status",
+          "washer_notification": "Washer notification events",
+          "washer_error": "Washer error events (optional)",
+          "reminders": "Repeat laundry reminders",
+          "reminder_minutes": "Reminder interval (minutes)",
+          "voice_scope": "INFO destination",
+          "voice_area": "Area for local announcements",
+          "voice_info": "INFO announcements",
+          "voice_error": "ERROR announcements",
+          "manual_acknowledge": "Confirm collection using a button"
+        }
       }
     },
     "error": {
@@ -278,7 +303,8 @@
       "voice_overlap": "Intervals overlap. Remove the old interval before replacing it.",
       "voice_interval": "Check times and weekdays; use whole minutes.",
       "voice_speakers_required": "Add at least one speaker.",
-      "voice_unknown_room": "Configure the fallback and every alternative room."
+      "voice_unknown_room": "Configure the fallback and every alternative room.",
+      "laundry_in_use": "This washer is already configured in another process."
     },
     "abort": {
       "voice_center_exists": "A voice center already exists. Change its options."
@@ -305,7 +331,8 @@
           "voice_info": "INFO announcements",
           "voice_warning": "WARNING announcements",
           "voice_error": "ERROR announcements",
-          "voice_repeat": "Repeat active ERROR notices"
+          "voice_repeat": "Repeat active ERROR notices",
+          "voice_scope": "INFO destination"
         }
       },
       "motion": {
@@ -320,7 +347,8 @@
           "voice_info": "INFO announcements",
           "voice_warning": "WARNING announcements",
           "voice_error": "ERROR announcements",
-          "voice_repeat": "Repeat active ERROR notices"
+          "voice_repeat": "Repeat active ERROR notices",
+          "voice_scope": "INFO destination"
         }
       },
       "shared_fan": {
@@ -337,7 +365,8 @@
           "voice_info": "INFO announcements",
           "voice_warning": "WARNING announcements",
           "voice_error": "ERROR announcements",
-          "voice_repeat": "Repeat active ERROR notices"
+          "voice_repeat": "Repeat active ERROR notices",
+          "voice_scope": "INFO destination"
         }
       },
       "humidity": {
@@ -363,7 +392,8 @@
           "voice_info": "INFO announcements",
           "voice_warning": "WARNING announcements",
           "voice_error": "ERROR announcements",
-          "voice_repeat": "Repeat active ERROR notices"
+          "voice_repeat": "Repeat active ERROR notices",
+          "voice_scope": "INFO destination"
         }
       },
       "hood": {
@@ -386,7 +416,8 @@
           "voice_info": "INFO announcements",
           "voice_warning": "WARNING announcements",
           "voice_error": "ERROR announcements",
-          "voice_repeat": "Repeat active ERROR notices"
+          "voice_repeat": "Repeat active ERROR notices",
+          "voice_scope": "INFO destination"
         }
       },
       "doorbell": {
@@ -408,7 +439,8 @@
           "voice_info": "INFO announcements",
           "voice_warning": "WARNING announcements",
           "voice_error": "ERROR announcements",
-          "voice_repeat": "Repeat active ERROR notices"
+          "voice_repeat": "Repeat active ERROR notices",
+          "voice_scope": "INFO destination"
         }
       },
       "doorbell_schedule": {
@@ -454,7 +486,8 @@
           "voice_info": "INFO announcements",
           "voice_warning": "WARNING announcements",
           "voice_error": "ERROR announcements",
-          "voice_repeat": "Repeat active ERROR notices"
+          "voice_repeat": "Repeat active ERROR notices",
+          "voice_scope": "INFO destination"
         }
       },
       "voice_center": {
@@ -516,6 +549,23 @@
           "volume": "Volume (0–1)",
           "speakers": "Speakers (sound mode)"
         }
+      },
+      "laundry": {
+        "title": "Laundry reminder",
+        "description": "Observes without controlling the washer. By default power-off, unknown or unavailable after completion acknowledge collection, including network loss. Enable the button for manual acknowledgement instead. INFO defaults to all speakers and respects center quiet hours. Enable INFO and automation after setup.",
+        "data": {
+          "name": "Process name",
+          "washer_status": "Washer current status",
+          "washer_notification": "Washer notification events",
+          "washer_error": "Washer error events (optional)",
+          "reminders": "Repeat laundry reminders",
+          "reminder_minutes": "Reminder interval (minutes)",
+          "voice_scope": "INFO destination",
+          "voice_area": "Area for local announcements",
+          "voice_info": "INFO announcements",
+          "voice_error": "ERROR announcements",
+          "manual_acknowledge": "Confirm collection using a button"
+        }
       }
     },
     "error": {
@@ -542,7 +592,8 @@
       "voice_overlap": "Intervals overlap. Remove the old interval before replacing it.",
       "voice_interval": "Check times and weekdays; use whole minutes.",
       "voice_speakers_required": "Add at least one speaker.",
-      "voice_unknown_room": "Configure the fallback and every alternative room."
+      "voice_unknown_room": "Configure the fallback and every alternative room.",
+      "laundry_in_use": "This washer is already configured in another process."
     }
   },
   "entity": {
@@ -563,11 +614,17 @@
       },
       "voice_test": {
         "name": "Test announcement"
+      },
+      "laundry_acknowledge": {
+        "name": "Laundry collected"
       }
     },
     "binary_sensor": {
       "group_leak": {
         "name": "Group leak"
+      },
+      "laundry_waiting": {
+        "name": "Laundry awaiting collection"
       }
     },
     "light": {
@@ -606,6 +663,12 @@
         "4": "Fri",
         "5": "Sat",
         "6": "Sun"
+      }
+    },
+    "voice_scope": {
+      "options": {
+        "local": "Local",
+        "all": "All speakers"
       }
     }
   },
