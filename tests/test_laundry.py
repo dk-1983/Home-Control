@@ -6,7 +6,7 @@ from datetime import timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 HAS_HA = importlib.util.find_spec("homeassistant") is not None
 
@@ -183,17 +183,24 @@ class LaundryTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("voice_repeat", fields)
         for entity in ("sensor.washer", "event.washer"):
             await self.report(entity, "unknown")
+        self.hass.config_entries = SimpleNamespace(async_entries=lambda domain: [])
         data, errors = validate(self.hass, fields)
         self.assertFalse(errors)
         self.assertEqual(data["washer_error"], "")
+        self.hass.config_entries = SimpleNamespace(async_entries=lambda domain: [self.entry])
+        _, errors = validate(self.hass, fields)
+        self.assertEqual(errors["base"], "laundry_in_use")
+        _, errors = validate(self.hass, fields, exclude_id=self.entry.entry_id)
+        self.assertFalse(errors)
+        self.hass.config_entries = None
 
     async def test_no_equipment_calls(self):
-        self.hass.services.async_call = AsyncMock()
-        await self.report("sensor.washer", "running")
-        await self.complete()
-        await self.runtime.async_press()
-        await self.runtime.async_set_enabled(False)
-        self.hass.services.async_call.assert_not_called()
+        with patch.object(type(self.hass.services), "async_call", new_callable=AsyncMock) as call:
+            await self.report("sensor.washer", "running")
+            await self.complete()
+            await self.runtime.async_press()
+            await self.runtime.async_set_enabled(False)
+            call.assert_not_called()
 
     async def test_automatic_acknowledgement_on_power_off_or_lost_wifi(self):
         self.runtime.config["manual_acknowledge"] = False
