@@ -38,6 +38,8 @@ async def async_get_config_entry_diagnostics(hass, entry):
                 "washer_status",
                 "washer_notification",
                 "washer_error",
+                "fridge_door",
+                "fridge_notification",
                 "valves",
                 "leak_sensors",
                 "rooms",
