@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 HAS_HA = importlib.util.find_spec("homeassistant") is not None
 
@@ -414,6 +414,33 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
             rule["mode"] = "volume"
             rule["speakers"] = ["media_player.kitchen"]
             self.assertEqual(self.runtime.route(self.notice()), (["media_player.kitchen"], 0.1))
+
+    async def test_area_lookup_is_scoped_and_does_not_use_deprecated_api(self):
+        from homeassistant.helpers import device_registry
+
+        from custom_components.home_control.fridge import FridgeRuntime
+
+        self.source_runtime.config.pop("voice_area", None)
+        registry = Mock(spec=device_registry.DeviceRegistry)
+        registry.async_get_device.side_effect = AssertionError("Deprecated lookup")
+        with patch.object(device_registry, "async_get", return_value=registry):
+            for source, entry_id in (
+                (self.observer, "source"),
+                (FridgeRuntime(self.hass, self.entry), "voice"),
+            ):
+                registry.async_get_device_by_identifier.return_value = SimpleNamespace(
+                    area_id="kitchen"
+                )
+                self.assertEqual(source.area(), "kitchen")
+                registry.async_get_device_by_identifier.assert_called_with(
+                    ("home_control", entry_id), entry_id
+                )
+                registry.async_get_device_by_identifier.return_value = None
+                self.assertIsNone(source.area())
+            self.source_runtime.config["voice_area"] = "bedroom"
+            registry.async_get_device_by_identifier.reset_mock()
+            self.assertEqual(self.observer.area(), "bedroom")
+            registry.async_get_device_by_identifier.assert_not_called()
 
     async def test_equipment_replacement_does_not_change_source_route(self):
         from custom_components.home_control.voice_events import ProcessVoice

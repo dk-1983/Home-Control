@@ -58,8 +58,8 @@ class FridgeRuntime:
     def area(self):
         if area := self.config.get("voice_area"):
             return area
-        device = device_registry.async_get(self.hass).async_get_device(
-            identifiers={(DOMAIN, self.entry.entry_id)}
+        device = device_registry.async_get(self.hass).async_get_device_by_identifier(
+            (DOMAIN, self.entry.entry_id), self.entry.entry_id
         )
         return device.area_id if device else None
 
